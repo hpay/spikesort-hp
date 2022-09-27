@@ -8,8 +8,10 @@ if ~exist('ops','var') || isempty(ops) || ~isfield(ops,'chanMap')
     ops.chanMap = 1:ops.Nchan; % treated as linear probe if no chanMap file
     
 else
-    temp = load(ops.chanMap)
+    temp = load(ops.chanMap);    
+    ops.Nchan = numel(temp.chanMap);
     ops.NchanTOT = numel(temp.chanMap);
+    
 end
 
 % TODO: implement bad channcel mask!

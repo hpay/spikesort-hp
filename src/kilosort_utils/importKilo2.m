@@ -8,7 +8,6 @@ function S = importKilo2(ksDir, fs, option_only_good, session_label)
 % Example:
 % S = importKilo2('Z:\Hannah\ephys\project2\HC05_220825\raw_220825_131723\kilo2.0', 3e4, 1)
 
-
 % read in spike times and get IDs and kilosort labels
 tm = readNPY(fullfile(ksDir,'spike_times.npy'));
 tm = double(tm)/fs;
@@ -22,14 +21,19 @@ if option_only_good
     cluster_labels = cluster_labels(cluster_labels==good_label);
 end
 
-% Get waveforms - SLOW!
-% dataDir = ksDir;
+% Get waveforms - SLOW! Now doing this separately right after spike sorting
 % wvStruct = get_session_waveforms(dataDir, ksDir, option_only_good);
 
 % Load these from waveformStruct.mat!
-wvStruct = getfield(load(fullfile(ksDir, 'waveformStruct.mat')),'wvStruct');
-
-% TODO: add Intan channel number for peak electrode
+waveform_file = fullfile(ksDir, 'waveformStruct.mat');
+if exist(waveform_file,'file')
+    wvStruct = getfield(load(waveform_file),'wvStruct');
+else
+    wvStruct = [];
+    wvStruct.max_site = NaN(length(cIDs),1);
+    wvStruct.mxWF = NaN(length(cIDs),1);
+    wvStruct.spkOffset = NaN;
+end
 
 S = dat;
 % Loop through units.
@@ -52,11 +56,11 @@ for ii = 1:length(cIDs)
     tend = max(tt);
     
     % Store as dat structure
-    %     S(ii) = dat(tt, chan_label, chan_val, 'event', tstart, tend, 's') ;
+    %  S(ii) = dat(tt, chan_label, chan_val, 'event', tstart, tend, 's') ;
     
     % Include waveform and store as dat structure
     %  waveform = wvStruct.pcWF(ii,:); % pcWF stores top PC (NOT in uV)!
-    %     info.waveunit = 'A.U.';
+    %  info.waveunit = 'A.U.';
     waveform = wvStruct.mxWF(ii,:); % mxWF stores largest waveform!
     info.waveunit = 'uV';
     info.wavefreq = fs;
