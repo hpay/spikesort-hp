@@ -5,13 +5,11 @@ function ops = hp_config(ops)
 if ~exist('ops','var') || isempty(ops) || ~isfield(ops,'chanMap')
     ops.Nchan = 64;
     ops.NchanTOT = 64;
-    ops.chanMap = 1:ops.Nchan; % treated as linear probe if no chanMap file
-    
+    ops.chanMap = 1:ops.Nchan; % treated as linear probe if no chanMap file    
 else
     temp = load(ops.chanMap);    
     ops.Nchan = numel(temp.chanMap);
-    ops.NchanTOT = numel(temp.chanMap);
-    
+    ops.NchanTOT = numel(temp.chanMap);    
 end
 
 % TODO: implement bad channcel mask!

@@ -12,7 +12,6 @@ Nchannels = height(T);
 T = sortrows(T,'IntanChannel'); % Sort by Intan #
 
 
-
 xcoords   = T.xpos;
 ycoords   = T.ypos;
 kcoords   = cellfun(@(x) x-'A', T.ShankLetter)+1; % grouping of channels (i.e. tetrode groups)
