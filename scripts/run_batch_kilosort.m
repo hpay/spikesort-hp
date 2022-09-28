@@ -3,6 +3,7 @@ birdID = 'HC05'; % AMB111
 T = readtable('D:\hannah\Dropbox\alab\Analysis\RECORDING_DEPTH_CHICK.xlsx');
 T = T(~T.exclude,:);
 T = T(strcmp(T.bird, birdID),:)
+fs = 3e4;
 
 % Data folder
 dataDir = 'Z:\Hannah\Ephys\Project2';
@@ -71,3 +72,30 @@ for ii = 1:height(T)
     save(fullfile(saveDir, 'waveformStruct.mat'), 'wvStruct')
 end
 
+
+%% Collect # of good cells in each?
+clear S
+for ii = 1:height(T)
+
+
+    % Find the binary directory
+    rootDir_temp = dir(fullfile(dataDir, T.filename{ii}, 'raw*'));
+    rootDir = fullfile(rootDir_temp.folder, rootDir_temp.name);
+        
+    % Create save directory
+    saveDir = fullfile(rootDir,'kilo2.0');  
+    
+    option_only_good = 1;
+    S{ii} =  importKilo2(saveDir, fs, option_only_good)
+        
+end
+ncells = cellfun(@length,S)
+days_since_surgery = days(T.date-datetime(2022,08,09))
+% figure;
+hold on
+plot(days_since_surgery, ncells,'-ob')
+xlabel('Days since surgery'); ylabel('# "good" cells in Kilosort2 (SC params)')
+ylim([0 max(ncells)+2])
+xlim([0 16])
+grid on 
+fixticks

@@ -24,7 +24,7 @@ ops.trange    = [0 Inf];
 % sample rate
 ops.fs = 30000;  
 
-% frequency for high pass filtering (150)
+% frequency for high pass filtering (SC changed from 150)
 ops.fshigh = 300;   
 
 % minimum firing rate on a "good" channel (0 to skip)
@@ -74,7 +74,7 @@ ops.lpFreq = 300; % 300hz lowpass cutoff
 % options for determining PCs
 ops.spkTh           = -6;      % (-6) spike threshold in standard deviations 
 ops.reorder         = 0;       % (1) whether to reorder batches for drift correction. % *SC/HP: set to 0 to order batches linearly by time
-ops.nskip           = 20;      % (25) how many batches to skip for determining spike PCs *HP: shy did SC change?***
+ops.nskip           = 20;      % (25) how many batches to skip for determining spike PCs *HP: why did SC change?***
 
 ops.GPU                 = 1; % has to be 1, no CPU version yet
 % ops.Nfilt               = 1024; % max number of clusters
