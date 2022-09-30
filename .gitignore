@@ -1,3 +1,5 @@
 *.asv
 *.egg-info
 results
+.ipynb_checkpoints
+__pycache__

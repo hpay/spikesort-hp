@@ -24,11 +24,11 @@ ops.trange    = [0 Inf];
 % sample rate
 ops.fs = 30000;  
 
-% frequency for high pass filtering (SC changed from 150)
-ops.fshigh = 300;   
+% frequency for high pass filtering 
+ops.fshigh = 300;           % (SC changed from 150 to 300)
 
-% minimum firing rate on a "good" channel (0 to skip)
-ops.minfr_goodchannels = 0; 
+% minimum firing rate on a "good" channel 
+ops.minfr_goodchannels = 0; % (SC changed from 1/50 to 0 to skip)
 
 % threshold on projections (like in Kilosort1, can be different for last pass like [10 4])
 ops.Th = [10 4];  
@@ -72,20 +72,20 @@ ops.lpFreq = 300; % 300hz lowpass cutoff
 
 %% danger, changing these settings can lead to fatal errors
 % options for determining PCs
-ops.spkTh           = -6;      % (-6) spike threshold in standard deviations 
-ops.reorder         = 0;       % (1) whether to reorder batches for drift correction. % *SC/HP: set to 0 to order batches linearly by time
-ops.nskip           = 20;      % (25) how many batches to skip for determining spike PCs *HP: why did SC change?***
+ops.spkTh           = -6;       % (-6) spike threshold in standard deviations 
+ops.reorder         = 0;        % (SC changed from 1) whether to reorder batches for drift correction. % *SC/HP: set to 0 to order batches linearly by time
+ops.nskip           = 20;       % (SC changed from 25) how many batches to skip for determining spike PCs *HP: why did SC change?***
 
-ops.GPU                 = 1; % has to be 1, no CPU version yet
+ops.GPU                 = 1;    % has to be 1, no CPU version yet
 % ops.Nfilt               = 1024; % max number of clusters
-ops.nfilt_factor        = 8; %4 % max number of clusters per good channel (even temporary ones)
-ops.ntbuff              = 128;    % %64; % samples of symmetrical buffer for whitening and spike detection
-ops.NT                  = 4*64*1024 + ops.ntbuff; %64*1024+ ops.ntbuff; % must be multiple of 32 + ntbuff. This is the batch size (try decreasing if out of memory). 
-ops.whiteningRange      = 32; % number of channels to use for whitening each channel
-ops.nSkipCov            = 20; %25 % compute whitening matrix from every N-th batch
-ops.scaleproc           = 200;   % int16 scaling of whitened data *HP: why?
-ops.nPCs                = 3; % how many PCs to project the spikes into
-ops.useRAM              = 0; % not yet available
+ops.nfilt_factor        = 8;    % (SC changed from 4) % max number of clusters per good channel (even temporary ones)
+ops.ntbuff              = 128;  % (SC changed from 64) % samples of symmetrical buffer for whitening and spike detection
+ops.NT = 4*64*1024 + ops.ntbuff;% (SC changed from 64*1024+ ops.ntbuff) % must be multiple of 32 + ntbuff. This is the batch size (try decreasing if out of memory). 
+ops.whiteningRange      = 32;   % number of channels to use for whitening each channel
+ops.nSkipCov            = 20;   % (SC changed from 25) % compute whitening matrix from every N-th batch *HP: why?
+ops.scaleproc           = 200;  % int16 scaling of whitened data 
+ops.nPCs                = 3;    % how many PCs to project the spikes into
+ops.useRAM              = 0;    % not yet available
 
-ops.nt0 	  =  61;            % number of time samples for the templates (has to be <=81 due to GPU shared memory)
-ops.nt0min  = floor(ops.nt0/3); % time sample where the negative peak should be aligned
+ops.nt0 	            = 61;   % number of time samples for the templates (has to be <=81 due to GPU shared memory)
+ops.nt0min = floor(ops.nt0/3);  % time sample where the negative peak should be aligned
