@@ -12,25 +12,28 @@ dataDir = 'Z:\Hannah\Ephys\Project2';
 scripts_dir = cd;
 spikesort_hp_dir = fileparts(scripts_dir);
 code_dir = fileparts(spikesort_hp_dir);
-addpath(genpath(fullfile(spikesort_hp_dir,'src'))) % Add this second so any over-written functions are called e.g. get_session_waveforms
+addpath(genpath(fullfile(spikesort_hp_dir,'src'))) 
 warning("off","parallel:gpu:device:DeviceDeprecated");
 
 %% Add kilosort2 directory
 addpath(genpath(fullfile(code_dir, 'kilosort-2.0')))
 
 %% Run a single session using settings
-%{
+% %{
 ops = [];
-ops.chanMap = 'H6_shankA.mat';
+% ops.chanMap = 'H6_shankA.mat';
+ops.chanMap = 'H6.mat';
 ops = hp_config(ops);
 
-rootDir = 'Z:\Hannah\ephys\project2\HC05_220819\raw_220819_125309'
+% rootDir = 'Z:\Hannah\ephys\project2\HC05_220819\raw_220819_125309'
+rootDir = 'Z:\Hannah\ephys\project2\test64b\raw'
 saveDir = fullfile(rootDir,'kilo2.0'); mkdir(saveDir)
-fprintf('\n Running Kilosort on directory %s \n', rootDir),
+fprintf('\n Running Kilosort on directory %s \n', rootDir)
+t = tic
 run_single_kilosort(rootDir,saveDir,ops)
-
+toc(t)
 % Save waveforms for celltype clustering
-wvStruct = get_session_waveforms(rootDir, saveDir, 0);
+wvStruct = getSessionWaveforms(rootDir, saveDir, 0);
 save(fullfile(saveDir, 'waveformStruct.mat'), 'wvStruct')
 
 % Load spikes into my dat structure in matlab
@@ -68,7 +71,7 @@ for ii = 1:height(T)
     save(fullfile(saveDir,'ops.mat'),'ops')
     
     % Save waveforms for celltype clustering
-    wvStruct = get_session_waveforms(rootDir, saveDir, 0);
+    wvStruct = getSessionWaveforms(rootDir, saveDir, 0);
     save(fullfile(saveDir, 'waveformStruct.mat'), 'wvStruct')
 end
 

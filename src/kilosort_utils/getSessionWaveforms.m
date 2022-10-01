@@ -1,8 +1,8 @@
-function results = get_session_waveforms(dataDir, ksDir, only_good)
+function results = getSessionWaveforms(dataDir, ksDir, only_good)
 % params
 nWF = 1e3; % (HP modified from 1e3 to 1e2) % number of waveforms to get for each unit
 spkOffset = 1.5e-3; % (SC modified from 1e-3 to 1.5e-3); % seconds before spike time to get
-spkDur = 4e-3; % seconds after spike time to get
+spkDur = 4e-3; % (s) total duration of waveform
 dt = 0.5/1e3; % time step for ccg binning, SC modified from 1ms to 0.5ms
 
 % Get raw data info for Intan recording

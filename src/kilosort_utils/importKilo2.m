@@ -22,7 +22,7 @@ if option_only_good
 end
 
 % Get waveforms - SLOW! Now doing this separately right after spike sorting
-% wvStruct = get_session_waveforms(dataDir, ksDir, option_only_good);
+% wvStruct = getSessionWaveforms(dataDir, ksDir, option_only_good);
 
 % Load these from waveformStruct.mat!
 waveform_file = fullfile(ksDir, 'waveformStruct.mat');
