@@ -19,7 +19,7 @@ warning("off","parallel:gpu:device:DeviceDeprecated");
 addpath(genpath(fullfile(code_dir, 'kilosort-2.0')))
 
 %% Run a single session using settings
-% %{
+%{
 ops = [];
 % ops.chanMap = 'H6_shankA.mat';
 ops.chanMap = 'H6.mat';
