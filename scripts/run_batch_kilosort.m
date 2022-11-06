@@ -24,21 +24,25 @@ warning("off","parallel:gpu:device:DeviceDeprecated");
 %% Add kilosort2 directory
 addpath(genpath(fullfile(code_dir, 'kilosort-2.0')))
 
-%% Run a single session using settings
+%% Run a single session 
 %{
-raw_dir = 'Z:\Hannah\ephys\project2\HC05_220819\raw_220819_125309'
+% raw_dir = 'Z:\Hannah\ephys\project2\HC05_220819\raw_220819_125309'
+raw_dir = 'Z:\Hannah\ephys\project2\HC09_221104\raw_221104_121402';
 ops = [];
-ops.chanMap = 'H6_shankA.mat';
+ops.chanMap = 'H6.mat';
+% ops.chanMap = 'H6_shankA.mat';
 ops = hp_config(ops);
 
-save_dir = save_dir_fun(fileparts(raw_dir)); mkdir(save_dir)
-fprintf('\n Running Kilosort on directory %s \n', root_dir)
+save_dir = save_dir_fun(fileparts(raw_dir)); 
+save_dir= [save_dir '_minfr_goodchannels1_50']
+mkdir(save_dir)
+fprintf('\n Running Kilosort on directory %s \n', raw_dir)
 t = tic;
-run_single_kilosort(root_dir,save_dir,ops)
+run_single_kilosort(raw_dir,save_dir,ops)
 toc(t)
 
 % Save waveforms for celltype clustering
-wvStruct = getSessionWaveforms(root_dir, save_dir, 0);
+wvStruct = getSessionWaveforms(raw_dir, save_dir, 0);
 save(fullfile(save_dir, 'waveformStruct.mat'), 'wvStruct')
 
 % Load spikes into my dat structure in matlab
@@ -53,46 +57,51 @@ disp(S)
 %   phy template-gui params.py
 %}
 
-%% Run all sessions using settings in ops
-for ii = 1:height(T)
-    try
-        % Find the binary directory
-        root_dir = fullfile(data_dir, T.filename{ii});
-        temp = dir(fullfile(data_dir, T.filename{ii}, 'raw*'));
-        raw_dir = fullfile(temp.folder, temp.name);
-        
-        % Create save directory
-        save_dir = save_dir_fun(root_dir);  mkdir(save_dir);
-        
-        % If it exists already, either overwrite or skip
-        if exist(save_dir,'dir')
-            if overwrite
-                rmdir(save_dir)
-            else
-                continue;
+%% Run all sessions in table T
+for ii = height(T):-1:1
+    disp(T(ii,:))
+    
+    % Find the binary directory
+    root_dir = fullfile(data_dir, T.filename{ii});
+    temp = dir(fullfile(data_dir, T.filename{ii}, 'raw*'));
+    raw_dir = fullfile(temp.folder, temp.name);
+    
+    % Create save directory
+    save_dir = save_dir_fun(root_dir);
+    mkdir(save_dir);
+    
+    
+    % If it exists already, either overwrite or skip
+    if exist(save_dir,'dir')
+        if overwrite
+            disp('overwriting')
+            try
+                rmdir(save_dir,'s')
+            catch;
             end
+        else
+            disp('skipping')
+            continue;
         end
-        mkdir(save_dir)
-        
-        % set up options
-        ops = [];
-        ops.badChannels = [];
-        ops.chanMap = [T.probe_chanmap{ii} '.mat']; % Make sure config folder is on the search path
-        ops = hp_config(ops);
-        
-        % Run and save results
-        fprintf('\n Running Kilosort on directory %s \n', raw_dir),
-        run_single_kilosort(raw_dir, save_dir, ops)
-        
-        % Save current options
-        save(fullfile(save_dir,'ops.mat'),'ops')
-        
-        % Save waveforms for celltype clustering
-        wvStruct = getSessionWaveforms(raw_dir, save_dir, 0);
-        save(fullfile(save_dir, 'waveformStruct.mat'), 'wvStruct')
-    catch msg
-        disp(msg)
     end
+    mkdir(save_dir)
+    
+    % set up options
+    ops = [];
+    ops.badChannels = eval(T.bad_chan{ii});
+    ops.chanMap = [T.probe_chanmap{ii} '.mat']; % Make sure config folder is on the search path
+    ops = hp_config(ops);
+    
+    % Run and save results. Note: ops saved in rez.mat
+    fprintf('\n Running Kilosort on directory %s \n', raw_dir),
+    run_single_kilosort(raw_dir, save_dir, ops);
+    
+    % Save waveforms for celltype clustering
+    wvStruct = getSessionWaveforms(raw_dir, save_dir, 0);
+    save(fullfile(save_dir, 'waveformStruct.mat'), 'wvStruct')
+    %     catch msg
+    %         disp(msg)
+    %     end
 end
 
 

@@ -1,9 +1,16 @@
-function S = importKilo2(ksDir, fs, option_only_good, session_label)
+function S = importKilo2(ksDir, fs, option_only_good, option_orig, session_label)
 % IMPORTKILO2 import sorted spike times and waveforms and convert to dat
 % structure
 %
-% S = importKilo2(filepath) imports all available channels of sorted data
-% from the folder filepath.
+% S = importKilo2(filepath, fs) imports all available channels of sorted data
+% from the folder filepath, assuming recorded at samplerate fs (usually
+% 30000)
+% option_only_good: Set 1 to only load "good" cells (post manual phy
+% sorting, if available(
+% option_orig: ignore any phy sorting and use categories assigned by
+% kilosort
+%
+% session_label: a prefix added to each cell name (before K000 assigned unit number etc)
 %
 % Example:
 % S = importKilo2('Z:\Hannah\ephys\project2\HC05_220825\raw_220825_131723\kilo2.0', 3e4, 1)
@@ -12,13 +19,21 @@ function S = importKilo2(ksDir, fs, option_only_good, session_label)
 tm = readNPY(fullfile(ksDir,'spike_times.npy'));
 tm = double(tm)/fs;
 sID = readNPY(fullfile(ksDir,'spike_clusters.npy'));
-[cIDs, cluster_labels] = get_phy_cluster_labels(ksDir); % 0 = noise, 1 = 'mua', 2 = 'good'
+if exist('option_orig','var') && option_orig
+    [cIDs, cluster_labels] = get_kilo_cluster_labels(ksDir); % 0 = noise, 1 = 'mua', 2 = 'good'
+else
+    [cIDs, cluster_labels] = get_phy_cluster_labels(ksDir); % 0 = noise, 1 = 'mua', 2 = 'good'
+end
 
-% Only look at "good" clusters?
+% Only look at "good" clusters -- if sorted with Phy, this will be the
+% final sorting
 if option_only_good
     good_label = 2;
     cIDs = cIDs(cluster_labels==good_label);
     cluster_labels = cluster_labels(cluster_labels==good_label);
+else % Discard "noise" sorted clusters
+    cIDs = cIDs(cluster_labels>0);
+    cluster_labels = cluster_labels(cluster_labels>0);
 end
 
 % Get waveforms - SLOW! Now doing this separately right after spike sorting

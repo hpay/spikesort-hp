@@ -1,5 +1,5 @@
 %% Function to do sorting that takes in root data directory and options
-function run_single_kilosort(rootDir, saveDir, ops)
+function rez = run_single_kilosort(rootDir, saveDir, ops)
 
 % find the binary file
 fprintf('Looking for data inside %s \n', rootDir)
@@ -32,6 +32,10 @@ rezToPhy(rez, saveDir);
 fprintf('Saving results to Rez  \n')
 rez.cProj = [];
 rez.cProjPC = [];
+rez.temp = [];
+
+% Also unnecessary to save for my purposes:
+rez.removed = [];
 
 % final time sorting of spikes, for apps that use st3 directly
 [~, isort]   = sortrows(rez.st3);

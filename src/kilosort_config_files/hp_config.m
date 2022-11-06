@@ -28,7 +28,7 @@ ops.fs = 30000;
 ops.fshigh = 300;           % (SC changed from 150 to 300)
 
 % minimum firing rate on a "good" channel  (0 to skip)
-ops.minfr_goodchannels = 0; % (SC changed from 1/50 to 0)
+ops.minfr_goodchannels = 1/100; % (SC changed from 1/50 to 0)
 
 % threshold on projections (like in Kilosort1, can be different for last pass like [10 4])
 ops.Th = [10 4];  
@@ -40,7 +40,7 @@ ops.lam = 10;
 ops.AUCsplit = 0.9; 
 
 % minimum spike rate (Hz), if a cluster falls below this for too long it gets removed
-ops.minFR = 1/100; 
+ops.minFR = 1/100;  % (SC changed from 1/50 to 1/100)
 
 % number of samples to average over (annealed from first to second value) 
 ops.momentum = [20 400]; 
@@ -80,7 +80,7 @@ ops.GPU                 = 1;    % has to be 1, no CPU version yet
 % ops.Nfilt               = 1024; % max number of clusters
 ops.nfilt_factor        = 12;    % (SC changed from 4) % max number of clusters per good channel (even temporary ones)
 ops.ntbuff              = 128;  % (SC changed from 64) % samples of symmetrical buffer for whitening and spike detection
-ops.NT = 8*64*1024 + ops.ntbuff;% (SC changed from 64*1024+ ops.ntbuff) % must be multiple of 32 + ntbuff. This is the batch size (try decreasing if out of memory). 
+ops.NT = 8*64*1024 + ops.ntbuff;% (SC changed from 64*1024+ ops.ntbuff) % must be multiple of 32 + ntbuff. This is the batch size (try decreasing if out of memory). 64*1024/30k = 2.1845 s, 8*64*1024/30k = 17.5 s
 ops.whiteningRange      = 32;   % number of channels to use for whitening each channel
 ops.nSkipCov            = 20;   % (SC changed from 25) % compute whitening matrix from every N-th batch *HP: why?
 ops.scaleproc           = 200;  % int16 scaling of whitened data 
