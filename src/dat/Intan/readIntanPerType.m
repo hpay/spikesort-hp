@@ -68,6 +68,7 @@ if ~option_digital_only
     
 end
 
+% TODO: if nargout<3, skip this 
 if ndig_in
     % Open the digital data
     dig_filepath = fullfile(filepath,'digitalin.dat');

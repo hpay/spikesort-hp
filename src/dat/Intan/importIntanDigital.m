@@ -13,11 +13,9 @@ function datout = importIntanDigital(filepath, option_raw_dig)
 %     'samplerate' - derived, not claimed (samples/second, double-precision)
 %     'tstart','tend' - time of first/last sample; in seconds.
 %     'units' - descriptive string giving units of data.
-%     ('wavemark') - spike identity
-%     ('waveform') for waveform spk channel from spike2
+
 %
-%
-% Dependencies: readIntanSingleFile
+% Dependencies: readIntanPerType
 %
 % Hannah Payne 2019
 
