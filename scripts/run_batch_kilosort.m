@@ -115,14 +115,20 @@ for ii = 1:height(T)
     S{ii} =  importKilo2(save_dir, fs, option_only_good);
         
 end
+%%
 ncells = cellfun(@length,S);
-days_since_surgery = days(T.date-datetime(2022,08,09));
-
+days_since_surgery = days(T.date-T.surgery);
+birds = unique(T.bird);
 figure;
 hold on
-plot(days_since_surgery, ncells,'-ob')
+for ii = 1:length(birds)
+    mask =strcmp(T.bird, birds{ii});
+plot(days_since_surgery(mask), ncells(mask),'-o')
+hold on;
+end
 xlabel('Days since surgery'); ylabel('# "good" cells in Kilosort2 (SC params)')
 ylim([0 max(ncells)+2])
 xlim([0 16])
 grid on 
-fixticks
+% fixticks
+legend(birds)
