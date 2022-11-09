@@ -1,12 +1,10 @@
 %% Generate list of directories to run kilosort on
-% birdID = 'HC05'; % AMB111
 T = readtable('D:\hannah\Dropbox\alab\Analysis\RECORDING_DEPTH_CHICK.xlsx');
 T = T(~T.exclude,:);
-% T = T(strcmp(T.bird, birdID),:)
 fs = 3e4;
 
 % Overwrite kilosort output?
-overwrite = 1;
+overwrite = 0;
 
 % Data folder
 data_dir = 'Z:\Hannah\Ephys\Project2';
@@ -20,45 +18,10 @@ spikesort_hp_dir = fileparts(scripts_dir);
 code_dir = fileparts(spikesort_hp_dir);
 addpath(genpath(fullfile(spikesort_hp_dir,'src'))) 
 warning("off","parallel:gpu:device:DeviceDeprecated");
-
-%% Add kilosort2 directory
-addpath(genpath(fullfile(code_dir, 'kilosort-2.0')))
-
-%% Run a single session 
-%{
-% raw_dir = 'Z:\Hannah\ephys\project2\HC05_220819\raw_220819_125309'
-raw_dir = 'Z:\Hannah\ephys\project2\HC09_221104\raw_221104_121402';
-ops = [];
-ops.chanMap = 'H6.mat';
-% ops.chanMap = 'H6_shankA.mat';
-ops = hp_config(ops);
-
-save_dir = save_dir_fun(fileparts(raw_dir)); 
-save_dir= [save_dir '_minfr_goodchannels1_50']
-mkdir(save_dir)
-fprintf('\n Running Kilosort on directory %s \n', raw_dir)
-t = tic;
-run_single_kilosort(raw_dir,save_dir,ops)
-toc(t)
-
-% Save waveforms for celltype clustering
-wvStruct = getSessionWaveforms(raw_dir, save_dir, 0);
-save(fullfile(save_dir, 'waveformStruct.mat'), 'wvStruct')
-
-% Load spikes into my dat structure in matlab
-option_only_good= 1;
-S = importKilo2(save_dir, ops.fs, option_only_good);
-disp(S)
-
-% Run phy to inspect it! (TODO)
-% In Anaconda prompt:
-%   conda activate phy_env
-% Navigate to folder with kilosort results (Type Z: to change to engram drive. then cd path. )
-%   phy template-gui params.py
-%}
+addpath(genpath(fullfile(code_dir, 'kilosort-2.0'))) % Add kilosort2 directory
 
 %% Run all sessions in table T
-for ii = height(T):-1:1
+for ii = 1:height(T)
     disp(T(ii,:))
     
     % Find the binary directory
@@ -69,15 +32,14 @@ for ii = height(T):-1:1
     % Create save directory
     save_dir = save_dir_fun(root_dir);
     mkdir(save_dir);
-    
-    
+        
     % If it exists already, either overwrite or skip
     if exist(save_dir,'dir')
         if overwrite
             disp('overwriting')
             try
                 rmdir(save_dir,'s')
-            catch;
+            catch
             end
         else
             disp('skipping')
@@ -94,41 +56,76 @@ for ii = height(T):-1:1
     
     % Run and save results. Note: ops saved in rez.mat
     fprintf('\n Running Kilosort on directory %s \n', raw_dir),
-    run_single_kilosort(raw_dir, save_dir, ops);
+    run_single_kilosort(raw_dir, save_dir, ops);    
     
+end
+
+%% Manually label results in Phy! Then run waveforms
+
+
+%% Get waveforms for all sessions in table T
+T = T(strcmp(T.manually_sorted,'yes'),:)
+
+for ii = 1%:height(T)
+    
+        % Find the binary directory
+    disp(T(ii,:))
+    root_dir = fullfile(data_dir, T.filename{ii});
+    temp = dir(fullfile(data_dir, T.filename{ii}, 'raw*'));
+    raw_dir = fullfile(temp.folder, temp.name);
+        save_dir = save_dir_fun(root_dir);
+
     % Save waveforms for celltype clustering
     wvStruct = getSessionWaveforms(raw_dir, save_dir, 0);
     save(fullfile(save_dir, 'waveformStruct.mat'), 'wvStruct')
-    %     catch msg
-    %         disp(msg)
-    %     end
+   
+%     wvStruct = getfield(load(fullfile(save_dir,'waveformStruct.mat')),'wvStruct');
+% [unit_ID, cluster_labels] = get_phy_cluster_labels(save_dir); % 0 = noise, 1 = 'mua', 2 = 'good'
+
 end
 
 
-%% Collect # of good cells in each?
+%% Load all spikes sorted and plot waveforms and clusters
+T = T(strcmp(T.manually_sorted,'yes'),:)
+ks_dir_fun = @(root_dir) fullfile(root_dir,'kilosort2_output');
+option_only_good = 1; % Only include cells I've marked as good
+
 clear S
 for ii = 1:height(T)
-
-    % Find the save directory
-    save_dir = save_dir_fun(fullfile(data_dir, T.filename{ii}));      
-    option_only_good = 1;
-    S{ii} =  importKilo2(save_dir, fs, option_only_good);
-        
+    save_dir = ks_dir_fun(fullfile(data_dir, T.filename{ii}));      
+    S{ii} =  importKilosort(save_dir, fs, option_only_good);        
 end
-%%
+
+%% Plot the number of "good" cells per session
 ncells = cellfun(@length,S);
 days_since_surgery = days(T.date-T.surgery);
 birds = unique(T.bird);
 figure;
 hold on
-for ii = 1:length(birds)
-    mask =strcmp(T.bird, birds{ii});
-plot(days_since_surgery(mask), ncells(mask),'-o')
-hold on;
+for jj = 1:length(birds)
+    mask =strcmp(T.bird, birds{jj});
+    plot(days_since_surgery(mask), ncells(mask),'-o')
+    hold on;
 end
 xlabel('Days since surgery'); ylabel('# "good" cells in Kilosort2 (SC params)')
 ylim([0 max(ncells)+2])
 xlim([0 16])
 grid on 
-% fixticks
 legend(birds)
+
+%% Plot waveforms
+figure
+for ii = 1:height(T)
+    waves = cell2mat({S{ii}.waveform}')';
+    for jj = 1:size(waves,2)
+        [maxval, maxind] = max(abs(waves(:,jj)));
+        plot(scaledata(waves(:,jj),0, maxval,0, 1),'k'); hold on
+    end
+end
+
+%% Generate GMM for all sorted cells
+gm = makeGMM_celltypes(cellfun(@(x) fullfile(data_dir, x), T.filename,'Uni',0))
+save('..\results\latestGMM_cellType.mat','gm','T')
+
+
+

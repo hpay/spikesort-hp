@@ -1,19 +1,16 @@
-function S = importKilo2(ksDir, fs, option_only_good, option_orig, session_label)
-% IMPORTKILO2 import sorted spike times and waveforms and convert to dat
+function S = importKilosort(ksDir, fs, option_only_good, option_orig, session_label)
+% IMPORTKILOSORT import sorted spike times and waveforms and convert to dat
 % structure
 %
-% S = importKilo2(filepath, fs) imports all available channels of sorted data
-% from the folder filepath, assuming recorded at samplerate fs (usually
-% 30000)
-% option_only_good: Set 1 to only load "good" cells (post manual phy
-% sorting, if available(
-% option_orig: ignore any phy sorting and use categories assigned by
-% kilosort
+% S = IMPORTKILOSORT(filepath, fs) imports all available channels of sorted data
+% 	from the folder filepath, recorded at samplerate fs (usually 30000)
+% option_only_good: Set 1 to only load "good" cells (post manual phy sorting, if available)
+% option_orig: ignore any phy sorting and use categories assigned by kilosort
 %
 % session_label: a prefix added to each cell name (before K000 assigned unit number etc)
 %
 % Example:
-% S = importKilo2('Z:\Hannah\ephys\project2\HC05_220825\raw_220825_131723\kilo2.0', 3e4, 1)
+% S = importKilosort('Z:\Hannah\ephys\project2\HC05_220825\kilosort2_output', 3e4, 1)
 
 % read in spike times and get IDs and kilosort labels
 tm = readNPY(fullfile(ksDir,'spike_times.npy'));
@@ -36,9 +33,6 @@ else % Discard "noise" sorted clusters
     cluster_labels = cluster_labels(cluster_labels>0);
 end
 
-% Get waveforms - SLOW! Now doing this separately right after spike sorting
-% wvStruct = getSessionWaveforms(dataDir, ksDir, option_only_good);
-
 % Load these from waveformStruct.mat!
 waveform_file = fullfile(ksDir, 'waveformStruct.mat');
 if exist(waveform_file,'file')
@@ -50,8 +44,8 @@ else
     wvStruct.spkOffset = NaN;
 end
 
-S = dat;
 % Loop through units.
+S = dat;
 for ii = 1:length(cIDs)
     
     % Cell ID
