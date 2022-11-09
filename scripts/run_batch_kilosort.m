@@ -12,6 +12,9 @@ data_dir = 'Z:\Hannah\Ephys\Project2';
 % Save dir
 save_dir_fun = @(root_dir) fullfile(root_dir,'kilosort2_output');
 
+% Results folder (GMM etc)
+addpath('..\results')
+
 %% set up code folders
 scripts_dir = cd;
 spikesort_hp_dir = fileparts(scripts_dir);
@@ -124,8 +127,14 @@ for ii = 1:height(T)
 end
 
 %% Generate GMM for all sorted cells
-gm = makeGMM_celltypes(cellfun(@(x) fullfile(data_dir, x), T.filename,'Uni',0))
+option_only_good = 1;
+gm = makeGMM_celltypes(cellfun(@(x) fullfile(data_dir, x), T.filename,'Uni',0), option_only_good);
 save('..\results\latestGMM_cellType.mat','gm','T')
 
-
-
+%% Save cell identity results
+option_only_good = 0;
+for ii = 1:height(T)
+    save_dir = ks_dir_fun(fullfile(data_dir, T.filename{ii}));    
+    [idx,nlogL,P,logpdf, goodIDs] = classifyUnitsGMM(fullfile(data_dir, T.filename{ii}), option_only_good);
+    save(fullfile(save_dir,'gmm_result.mat'),'idx','nlogL','P','logpdf', 'goodIDs')
+end
