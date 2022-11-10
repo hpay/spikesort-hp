@@ -64,27 +64,31 @@ for ii = 1:height(T)
 end
 
 %% Manually label results in Phy! Then run waveforms
-
+keyboard
 
 %% Get waveforms for all sessions in table T
 T = T(strcmp(T.manually_sorted,'yes'),:)
 
-for ii = 1%:height(T)
+for ii = 1:height(T)
     
-        % Find the binary directory
+    % Find the binary directory
     disp(T(ii,:))
     root_dir = fullfile(data_dir, T.filename{ii});
     temp = dir(fullfile(data_dir, T.filename{ii}, 'raw*'));
     raw_dir = fullfile(temp.folder, temp.name);
-        save_dir = save_dir_fun(root_dir);
-
+    save_dir = save_dir_fun(root_dir);
+        
+    % Check if already done with the latest sorting unit labels
+    if exist(fullfile(save_dir, 'waveformStruct.mat'),'file')
+        wvStruct =getfield(load(fullfile(save_dir, 'waveformStruct.mat')),'wvStruct');
+        [cIDs,cluster_labels] = get_phy_cluster_labels(save_dir);
+        if all(cIDs==wvStruct.goodIDs); continue; end
+        
+    end
     % Save waveforms for celltype clustering
-    wvStruct = getSessionWaveforms(raw_dir, save_dir, 0);
+    wvStruct = getSessionWaveforms(raw_dir, save_dir, 0);    
     save(fullfile(save_dir, 'waveformStruct.mat'), 'wvStruct')
-   
-%     wvStruct = getfield(load(fullfile(save_dir,'waveformStruct.mat')),'wvStruct');
-% [unit_ID, cluster_labels] = get_phy_cluster_labels(save_dir); % 0 = noise, 1 = 'mua', 2 = 'good'
-
+    
 end
 
 

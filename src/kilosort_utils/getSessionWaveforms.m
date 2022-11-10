@@ -1,4 +1,4 @@
-function results = getSessionWaveforms(dataDir, ksDir, only_good)
+function wvStruct = getSessionWaveforms(dataDir, ksDir, only_good)
 % params
 nWF = 1e3; % (HP modified from 1e3 to 1e2) % number of waveforms to get for each unit
 spkOffset = 1.5e-3; % (SC modified from 1e-3 to 1.5e-3); % seconds before spike time to get
@@ -64,7 +64,6 @@ end
 
 % Get top PC of waveforms across channels
 pcWF = nan(numUnits,spkDurSamples);
-
 for i=1:numUnits
     [e,s,l] = pca(waveFormsMean(:,:,i)');
     % correct sign so that largest value is negative
@@ -86,7 +85,7 @@ for i=1:numUnits
 end
 
 
-results = struct('mxWF',mxWF,'max_site',max_site,'pcWF',pcWF,'meanRate',meanRate,...
+wvStruct = struct('mxWF',mxWF,'max_site',max_site,'pcWF',pcWF,'meanRate',meanRate,...
     'waveFormsMean',waveFormsMean,'spkDur',spkDur,'spkOffset',spkOffset,'goodIDs',goodIDs,...
     'goodLabels',goodLabels,'medISI',medISI,'contam',contam);
 end
