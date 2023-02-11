@@ -1,7 +1,12 @@
 %% Run a single session 
+addpath(genpath('D:\hannah\Dropbox\code\spikesort\kilosort-2.0'))
+addpath(genpath('..\src')) % overloaded functions run_single_kilosort
 
 % Select file and probe
-raw_dir = 'Z:\Hannah\ephys\project2\HC09_221104\raw_221104_121402';
+% raw_dir = 'Z:\Hannah\ephys\project2\HC09_221104\raw_221104_121402';
+% raw_dir = 'Z:\Hannah\ephys\project2\HC10_221219\raw_221219_140912';
+% raw_dir = 'Z:\Hannah\ephys\project2\HC10_230103\raw_230103_141139';
+raw_dir = 'Z:\Hannah\ephys\project2\HC10_230106\raw_230106_140916';
 ops = []; ops.chanMap = 'H6.mat';
 
 % raw_dir = 'Z:\Hannah\ephys\project2\HC05_220819\raw_220819_125309'
@@ -9,7 +14,7 @@ ops = []; ops.chanMap = 'H6.mat';
 
 % Run sorting
 ops = hp_config(ops);
-save_dir = fullfile(fileparts(raw_dir,'kilosort2_output')); 
+save_dir = fullfile(fileparts(raw_dir),'kilosort2_output'); 
 mkdir(save_dir)
 fprintf('\n Running Kilosort on directory %s \n', raw_dir)
 t = tic;

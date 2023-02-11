@@ -25,12 +25,11 @@ end
 % Only look at "good" clusters -- if sorted with Phy, this will be the
 % final sorting
 if option_only_good
-    good_label = 2;
-    cIDs = cIDs(cluster_labels==good_label);
-    cluster_labels = cluster_labels(cluster_labels==good_label);
+    cIDs = cIDs(strcmp(cluster_labels,'good'));
+    cluster_labels = cluster_labels(strcmp(cluster_labels,'good'));
 else % Discard "noise" sorted clusters
-    cIDs = cIDs(cluster_labels>0);
-    cluster_labels = cluster_labels(cluster_labels>0);
+    cIDs = cIDs(~strcmp(cluster_labels,'noise'));
+    cluster_labels = cluster_labels(~strcmp(cluster_labels,'noise'));
 end
 
 % Load these from waveformStruct.mat!

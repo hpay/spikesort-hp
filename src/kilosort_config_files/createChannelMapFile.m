@@ -3,13 +3,11 @@
 % H6 probe
 T = readtable('D:\hannah\Dropbox\alab\Analysis\SILICON PROBE MAP H6.xlsx');
 
-T = sortrows(sortrows(T,'ShankPosition'),'ShankLetter'); % Sort by Intan #
-% T([8 12 14 16 33:end],:) = []; %***Optionally remove unrecorded channels
+T = sortrows(sortrows(T,'ShankPosition'),'ShankLetter'); % Sort by shank & position
 % T([33:end],:) = []; %***Optionally remove unrecorded channels
 Nchannels = height(T);
 
 
-T = sortrows(T,'IntanChannel'); % Sort by Intan #
 xcoords   = T.xpos;
 ycoords   = T.ypos;
 kcoords   = cellfun(@(x) x-'A', T.ShankLetter)+1; % grouping of channels (i.e. tetrode groups)
@@ -22,14 +20,13 @@ ycoords = ycoords(connected);
 kcoords = kcoords(connected);
 connected = connected(connected);
 
-chanMap   = 1:Nchannels;
-% chanMap   = T.IntanChannel+1;
+chanMap   = T.IntanChannel+1;
 chanMap0ind = chanMap - 1;
 
 % chanMap = chanMap(connected);
 % chanMap0ind = chanMap0ind(connected);
 
-save('chanMap_H6.mat', ... % _HC05_220811
+save('H6.mat', ... % _HC05_220811
     'chanMap','connected', 'xcoords', 'ycoords', 'kcoords', 'chanMap0ind', 'fs')
 
 % %% Original examples

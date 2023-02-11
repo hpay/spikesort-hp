@@ -1,7 +1,5 @@
 function ops = hp_config(ops)
 
-% ops.NchanTOT  = ops.Nchan; % total number of channels in your recording *I'm not sure what this does***
-
 if ~exist('ops','var') || isempty(ops) || ~isfield(ops,'chanMap')
     ops.Nchan = 64;
     ops.NchanTOT = 64;
@@ -12,11 +10,8 @@ else
     ops.NchanTOT = numel(temp.chanMap);    
 end
 
-% TODO: implement bad channcel mask!
-% ops.badChannels = badChannels; % channel nums *after* sort by chanMap; blank these channels in pre-processing
-
 % Temporary scratch space, ideally on SSD?
-ops.fproc   = 'C:\Users\Hannah\temp\tmp_wh.dat';
+ops.fproc   = 'C:\temp\tmp_wh.dat';
 
 % time range to sort
 ops.trange    = [0 Inf]; 
@@ -27,8 +22,8 @@ ops.fs = 30000;
 % frequency for high pass filtering 
 ops.fshigh = 300;           % (SC changed from 150 to 300)
 
-% minimum firing rate on a "good" channel  (0 to skip)
-ops.minfr_goodchannels = 1/100; % (SC changed from 1/50 to 0)
+% minimum firing rate on a "good" channel (used during pre-processing) (0 to skip)
+ops.minfr_goodchannels = 0; % (SC changed from 1/50 to 0). 
 
 % threshold on projections (like in Kilosort1, can be different for last pass like [10 4])
 ops.Th = [10 4];  
@@ -40,7 +35,7 @@ ops.lam = 10;
 ops.AUCsplit = 0.9; 
 
 % minimum spike rate (Hz), if a cluster falls below this for too long it gets removed
-ops.minFR = 1/100;  % (SC changed from 1/50 to 1/100)
+ops.minFR = 1/50;  % (SC changed from 1/50 to 1/100)
 
 % number of samples to average over (annealed from first to second value) 
 ops.momentum = [20 400]; 

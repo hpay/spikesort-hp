@@ -16,10 +16,9 @@ spkSamp = readNPY(fullfile(ksDir, 'spike_times.npy'));
 sID = readNPY(fullfile(ksDir,'spike_clusters.npy'));
 [cIDs,cluster_labels] = get_phy_cluster_labels(ksDir);
 if only_good
-    ind = cluster_labels==2;
+    ind = strcmp(cluster_labels,'good');
 else
-    %         ind = cluster_labels>0 & cluster_labels<3;
-    ind = isfinite(cluster_labels);
+    ind = true(size(cluster_labels));
 end
 goodIDs = cIDs(ind(:));
 goodLabels = cluster_labels(ind(:));

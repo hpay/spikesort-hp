@@ -52,5 +52,5 @@ end
 
 % save final results as rez
 fname = fullfile(saveDir, 'rez.mat');
-save(fname, 'rez', '-v7.3');
+save(fname,'-struct', 'rez', '-v7.3');
 end
