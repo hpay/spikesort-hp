@@ -1,7 +1,7 @@
 %  create a channel map file for kilosort (not needed for spikeinterface, just for running direct in matlab)
 
 % H6 probe
-T = readtable('D:\hannah\Dropbox\alab\Analysis\SILICON PROBE MAP H6.xlsx');
+T = readtable('SILICON PROBE MAP H6.xlsx');
 
 T = sortrows(sortrows(T,'ShankPosition'),'ShankLetter'); % Sort by shank & position
 % T([33:end],:) = []; %***Optionally remove unrecorded channels
@@ -14,7 +14,7 @@ kcoords   = cellfun(@(x) x-'A', T.ShankLetter)+1; % grouping of channels (i.e. t
 
 fs = 30000; % sampling frequency
 
-connected = true(Nchannels, 1); % Change if needed
+connected = true(Nchannels, 1); % Change if needed - but better to mask bad channels later
 xcoords = xcoords(connected);
 ycoords = ycoords(connected);
 kcoords = kcoords(connected);
@@ -26,7 +26,7 @@ chanMap0ind = chanMap - 1;
 % chanMap = chanMap(connected);
 % chanMap0ind = chanMap0ind(connected);
 
-save('H6.mat', ... % _HC05_220811
+save('H6.mat', ... 
     'chanMap','connected', 'xcoords', 'ycoords', 'kcoords', 'chanMap0ind', 'fs')
 
 % %% Original examples

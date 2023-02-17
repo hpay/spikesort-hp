@@ -1,24 +1,26 @@
 %% Generate list of directories to run kilosort on
 
-temp = which(mfilename);
-dropbox_folder = temp(1:strfind(temp,'Dropbox')+6);
+raw_dir_temp = which(mfilename);
+dropbox_folder = raw_dir_temp(1:strfind(raw_dir_temp,'Dropbox')+6);
 T = readtable(fullfile(dropbox_folder,'alab\Analysis\RECORDING_DEPTH_CHICK.xlsx'));
-T = T(~T.exclude,:);
+T = T(T.include  & (strcmp(T.task,'X_gaze')|strcmp(T.task,'X_no_gaze')) ,:);
 fs = 3e4;
 
 % Overwrite kilosort output?
 overwrite = 0;
 
 % Data folder
-data_dir = 'Z:\Hannah\Ephys\Project2';
+data_dir_remote = 'Z:\Hannah\Ephys\Project2';
+data_dir_local = 'D:\temp'; 
 
 % Save dir
-save_dir_fun = @(root_dir) fullfile(root_dir,'kilosort2_output');
+ks_dir_fun = @(root_dir) fullfile(root_dir,'kilosort2_output');
 
 % Results folder (GMM etc)
 addpath('..\results')
 
 %% set up code folders
+% Copy spike sorting results and raw data for post-processing and analysis. NOT backed up - make sure to copy anything saved here back to server or have code to reproduce!
 scripts_dir = cd;
 spikesort_hp_dir = fileparts(scripts_dir);
 code_dir = fileparts(spikesort_hp_dir);
@@ -29,19 +31,34 @@ addpath(genpath(fullfile(code_dir, 'kilosort-2.0'))) % Add kilosort2 directory
 %% Run all sessions in table T
 for ii = 1:height(T)
     
+    % Root dir on server (Z:\Hannah\ephys\HC11_230129 etc)
+    root_dir_remote = fullfile(data_dir_remote, T.filename{ii});
+    root_dir_local = fullfile(data_dir_local, T.filename{ii});
+
+    % Copy everything to local data SSD
+    if ~exist(root_dir_local,'dir') && exist(root_dir_remote,'dir')
+        copyfile(root_dir_remote, root_dir_local)
+    end
+        
+end
+
+
+for ii = 1:height(T)
+    % Root dir on server (Z:\Hannah\ephys\HC11_230129 etc)
+    root_dir_remote = fullfile(data_dir_remote, T.filename{ii});
+    root_dir_local = fullfile(data_dir_local, T.filename{ii});
+
     % Find the binary directory
-    root_dir = fullfile(data_dir, T.filename{ii});
-    temp = dir(fullfile(data_dir, T.filename{ii}, 'raw*'));
-    raw_dir = fullfile(temp.folder, temp.name);
+    raw_dir_temp = dir(fullfile(root_dir_local, 'raw*'));
+    raw_dir = fullfile(raw_dir_temp.folder, raw_dir_temp.name);
     
     % Create save directory
-    save_dir = save_dir_fun(root_dir);
+    save_dir = ks_dir_fun(root_dir_local);
     
     % If it exists already, either overwrite or skip
-    if exist(save_dir,'dir') && ~isempty(dir(fullfile(save_dir,'*.npy')))
+    if ~isempty(dir(fullfile(save_dir,'*.npy')))
         if overwrite
-            
-            fprint('Overwriting %s\n', T.filename{ii})
+            fprintf('Overwriting %s\n', T.filename{ii})
             try
                 rmdir(save_dir,'s')
             catch
@@ -63,36 +80,45 @@ for ii = 1:height(T)
     % Run and save results. Note: ops saved in rez.mat
     fprintf('\n Running Kilosort on directory %s \n', raw_dir),
     run_single_kilosort(raw_dir, save_dir, ops);
+        
     
+    % Apply my custom prescreening and apply labels to 
     
-    % OPTIONAL: copy raw data and kilosort output to a temp folder on a
-    % local drive
-    temp_folder = 'D:\temp';
-    mkdir(fullfile(temp_folder, T.filename{ii}))
-    copyfile(raw_dir, fullfile(temp_folder, T.filename{ii}))
-    copyfile(save_dir_fun(fullfile(data_dir, T.filename{ii})), ...
-        save_dir_fun(fullfile(temp_folder, T.filename{ii})))
-    fprintf('Results copied to %s - delete raw files after manually inspecting!\n', temp_folder)
+    % Copy kilosort output to the server
+    save_dir_remote = ks_dir_fun(root_dir_remote);
+    copyfile(save_dir, save_dir_remote)   
+    
+    % Edit params.py to reflect new amplifier.dat location
+    fid = fopen(fullfile(save_dir,'params.py'), 'r'); % Read params.py from local copy
+    a = {};
+    while ~feof(fid); a{end+1} = fgets(fid);  pause(.001);  end
+    fclose(fid);
+    a{1} = sprintf("dat_path = '%s'\n", strrep(fullfile(root_dir_remote, raw_dir_temp.name, 'amplifier.dat'),'\','/'));
+    fid = fopen(fullfile(save_dir_remote,'params.py'), 'w'); % Write correct params.py to remote server
+    for jj = 1:length(a); fprintf(fid,a{jj});      end
+    fclose(fid);
+    
+    fprintf('Results copied to server!\n')
     
 end
 
 %% Manually label results in Phy! Then run waveforms
 % disp('Manually sort now!')
 % keyboard
+data_dir_process = data_dir_local
 
-
-
-%% Plot the number of "good" cells (manual and KS labelled(
+% T = T([1:20],:)
+%% Plot the number of "good" cells (manual and KS labelled)
 disp(T(:,{'filename','depth','manually_sorted','probe_chanmap','bad_chan','notes'}))
 disp('Counting total cells')
 ngood_final= [];
 ngood_orig = [];
 for ii = 1:height(T)
     % Find the binary directory
-    root_dir = fullfile(data_dir, T.filename{ii});
-    temp = dir(fullfile(data_dir, T.filename{ii}, 'raw*'));
-    raw_dir = fullfile(temp.folder, temp.name);
-    save_dir = save_dir_fun(root_dir);
+    root_dir = fullfile(data_dir_process, T.filename{ii});
+    raw_dir_temp = dir(fullfile(root_dir, 'raw*'));
+    raw_dir = fullfile(raw_dir_temp.folder, raw_dir_temp.name);
+    save_dir = ks_dir_fun(root_dir);
 
     % Latest labels saved by Phy
     [cIDs,cluster_labels] = get_phy_cluster_labels(save_dir);
@@ -126,21 +152,19 @@ legend(hs(:,1),birds)
 
 
 %% Get waveforms for all sessions in table T
-% **** TODO: fix this! why is wvStruct repeated nUnit times with the same
-% info in each!
 for ii = 1:height(T)
     
     % Find the binary directory
-    root_dir = fullfile(data_dir, T.filename{ii});
-    temp = dir(fullfile(data_dir, T.filename{ii}, 'raw*'));
-    raw_dir = fullfile(temp.folder, temp.name);
-    save_dir = save_dir_fun(root_dir);
+    root_dir = fullfile(data_dir_process, T.filename{ii});
+    raw_dir_temp = dir(fullfile(root_dir, 'raw*'));
+    raw_dir = fullfile(raw_dir_temp.folder, raw_dir_temp.name);
+    save_dir = ks_dir_fun(root_dir);
     
     % Check if already done with the latest sorting unit labels
     if exist(fullfile(save_dir, 'waveformStruct.mat'),'file')
         wvStruct =getfield(load(fullfile(save_dir, 'waveformStruct.mat')),'wvStruct');
         [cIDs,cluster_labels] = get_phy_cluster_labels(save_dir);
-        if length(cIDs)==length(wvStruct.goodIDs) && all(cIDs==wvStruct.goodIDs);
+        if length(wvStruct)==1 && length(wvStruct.goodLabels)>1 && length(cIDs)==length(wvStruct.goodIDs) && all(cIDs==wvStruct.goodIDs);
             continue;
         end
         
@@ -150,50 +174,49 @@ for ii = 1:height(T)
     only_good = 0; % Process all for now, select good later
     wvStruct = getSessionWaveforms(raw_dir, save_dir, only_good);
     save(fullfile(save_dir, 'waveformStruct.mat'), 'wvStruct','-v7.3')
+    save(fullfile(ks_dir_fun(fullfile(data_dir_remote, T.filename{ii})), 'waveformStruct.mat'), 'wvStruct','-v7.3')
     
 end
 
 
-
-
-
 %% Load all spikes sorted and plot waveforms and clusters
-T = T(strcmp(T.manually_sorted,'yes'),:)
+T_load = T(strcmp(T.manually_sorted,'yes'),:)
 
-ks_dir_fun = @(root_dir) fullfile(root_dir,'kilosort2_output');
 option_only_good = 1; % Only include cells marked as good
 
 % clear S
-for ii = 1:height(T)
-    save_dir = ks_dir_fun(fullfile(data_dir, T.filename{ii}));
+for ii = 1:height(T_load)
+    save_dir = ks_dir_fun(fullfile(data_dir_local, T_load.filename{ii}));
     S{ii} =  importKilosort(save_dir, fs, option_only_good);
 end
 
 
-%% Plot waveforms
+% Plot waveforms
 figure
-c = jet(height(T));
-hs = gobjects(height(T),1);
-for ii = 1:height(T)
+c = jet(height(T_load));
+hs = gobjects(height(T_load),1);
+for ii = 1:height(T_load)
     waves = cell2mat({S{ii}.waveform}')';
     for jj = 1:size(waves,2)
         [maxval, maxind] = max(abs(waves(:,jj)));
         hs(ii) = plot(scaledata(waves(:,jj),0, maxval,0, 1),'Color',c(ii,:)); hold on
     end
 end
-legend(hs,arrayfun(@(x) num2str(x), 1:height(T),'Uni',0))
+legend(hs,arrayfun(@(x) num2str(x), 1:height(T_load),'Uni',0))
 
 %% Generate GMM for all sorted cells
-T = T(strcmp(T.manually_sorted,'yes'),:)
+Tmanual = T(strcmp(T.manually_sorted,'yes'),:)
 
 option_only_good = 1;
-gm = makeGMM_celltypes(cellfun(@(x) fullfile(data_dir, x), T.filename,'Uni',0), option_only_good);
+gm = makeGMM_celltypes(cellfun(@(x) fullfile(data_dir_local, x), Tmanual.filename,'Uni',0), option_only_good);
 save('..\results\latestGMM_cellType.mat','gm','T')
 
 %% Save cell identity results
 option_only_good = 0;
 for ii = 1:height(T)
-    save_dir = ks_dir_fun(fullfile(data_dir, T.filename{ii}));
-    [idx,nlogL,P,logpdf, goodIDs] = classifyUnitsGMM(fullfile(data_dir, T.filename{ii}), option_only_good);
+    save_dir_local = ks_dir_fun(fullfile(data_dir_local, T.filename{ii}));
+    save_dir = ks_dir_fun(fullfile(data_dir_remote, T.filename{ii}));
+    [idx,nlogL,P,logpdf, goodIDs] = classifyUnitsGMM(fullfile(data_dir_local, T.filename{ii}), option_only_good);
+    save(fullfile(save_dir,'gmm_result.mat'),'idx','nlogL','P','logpdf', 'goodIDs')
     save(fullfile(save_dir,'gmm_result.mat'),'idx','nlogL','P','logpdf', 'goodIDs')
 end

@@ -21,7 +21,7 @@ else
         if option_only_good
             [unit_ID, cluster_labels] = get_phy_cluster_labels(ks_dir); % 0 = noise, 1 = 'mua', 2 = 'good'
             if length(unit_ID) ~= length(wvStruct.goodIDs); error('Run waveform extraction after manual curation'); end
-            mask = (cluster_labels==2);
+            mask = strcmp(cluster_labels,'good');
             wvStruct.mxWF = wvStruct.mxWF(mask,:);
             wvStruct.max_site = wvStruct.max_site(mask,:);
             wvStruct.pcWF = wvStruct.pcWF(mask,:);

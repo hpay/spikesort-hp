@@ -86,5 +86,5 @@ end
 
 wvStruct = struct('mxWF',mxWF,'max_site',max_site,'pcWF',pcWF,'meanRate',meanRate,...
     'waveFormsMean',waveFormsMean,'spkDur',spkDur,'spkOffset',spkOffset,'goodIDs',goodIDs,...
-    'goodLabels',goodLabels,'medISI',medISI,'contam',contam);
+    'goodLabels',{goodLabels},'medISI',medISI,'contam',contam);
 end
