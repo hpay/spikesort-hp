@@ -1,4 +1,4 @@
-function S = importKilosort(ksDir, fs, option_only_good, option_orig, session_label)
+function S = importKilosort(ksDir, fs, option_only_good, session_label)
 % IMPORTKILOSORT import sorted spike times and waveforms and convert to dat
 % structure
 %
@@ -16,36 +16,24 @@ function S = importKilosort(ksDir, fs, option_only_good, option_orig, session_la
 tm = readNPY(fullfile(ksDir,'spike_times.npy'));
 tm = double(tm)/fs;
 sID = readNPY(fullfile(ksDir,'spike_clusters.npy'));
-if exist('option_orig','var') && option_orig
-    [cIDs, cluster_labels] = get_kilo_cluster_labels(ksDir); % 0 = noise, 1 = 'mua', 2 = 'good'
-else
-    [cIDs, cluster_labels] = get_phy_cluster_labels(ksDir); % 0 = noise, 1 = 'mua', 2 = 'good'
-end
-
-% Only look at "good" clusters -- if sorted with Phy, this will be the
-% final sorting
-if option_only_good
-    cIDs = cIDs(strcmp(cluster_labels,'good'));
-    cluster_labels = cluster_labels(strcmp(cluster_labels,'good'));
-else % Discard "noise" sorted clusters
-    cIDs = cIDs(~strcmp(cluster_labels,'noise'));
-    cluster_labels = cluster_labels(~strcmp(cluster_labels,'noise'));
-end
+% [cIDs, cluster_labels] = get_phy_cluster_labels(ksDir);
 
 % Load these from waveformStruct.mat!
 waveform_file = fullfile(ksDir, 'waveformStruct.mat');
-if exist(waveform_file,'file')
-    wvStruct = getfield(load(waveform_file),'wvStruct');
-else
-    wvStruct = [];
-    wvStruct.max_site = NaN(length(cIDs),1);
-    wvStruct.mxWF = NaN(length(cIDs),1);
-    wvStruct.spkOffset = NaN;
+wvStruct = getfield(load(waveform_file),'wvStruct');
+cIDs = wvStruct.goodIDs;
+    
+% Only look at "good" clusters 
+if option_only_good
+    inds_keep = find(strcmp(wvStruct.goodLabels,'good'));
+else % Discard "noise" sorted clusters
+    inds_keep = find(~strcmp(wvStruct.goodLabels,'noise'));
 end
+inds_keep = inds_keep(:)';
 
 % Loop through units.
 S = dat;
-for ii = 1:length(cIDs)
+for ii = inds_keep
     
     % Cell ID
     cID = cIDs(ii);
@@ -73,7 +61,8 @@ for ii = 1:length(cIDs)
     info.waveunit = 'uV';
     info.wavefreq = fs;
     info.prethresh = fs*wvStruct.spkOffset;
-    S(ii) = dat(tt, chan_label, chan_val, 'event', tstart, tend, 's', cID, waveform, info) ;
+    info.label = wvStruct.goodLabels{ii};
+    S(end+1) = dat(tt, chan_label, chan_val, 'event', tstart, tend, 's', cID, waveform, info) ;
     
 end
 

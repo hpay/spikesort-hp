@@ -14,13 +14,13 @@ fs = h.sample_rate;
 fDat = fullfile(dataDir,'amplifier.dat');
 spkSamp = readNPY(fullfile(ksDir, 'spike_times.npy'));
 sID = readNPY(fullfile(ksDir,'spike_clusters.npy'));
-[cIDs,cluster_labels] = get_phy_cluster_labels(ksDir);
+[unit_ID,cluster_labels] = get_phy_cluster_labels(ksDir);
 if only_good
     ind = strcmp(cluster_labels,'good');
 else
     ind = true(size(cluster_labels));
 end
-goodIDs = cIDs(ind(:));
+goodIDs = unit_ID(ind(:));
 goodLabels = cluster_labels(ind(:));
 
 % prepare variables
@@ -36,29 +36,46 @@ mmf = memmapfile(fDat, 'Format', {'int16', [nCh nSamp], 'x'});
 
 maxTime = double(max(spkSamp))/fs;
 
+mxWF = nan(numUnits,spkDurSamples);
+nSpikes = NaN(numUnits,1);
+
 % read in spikes for all units
 for thisUnit=1:numUnits
     curUnitID = goodIDs(thisUnit);
     curSpikeTimes = double(spkSamp(sID==curUnitID))/fs;
     meanRate(thisUnit) = length(curSpikeTimes)./maxTime;
     medISI(thisUnit) = median(diff(curSpikeTimes));
-    if ~isempty(curSpikeTimes)
-        [K, Qi, Q00, Q01, rir] = ccg(curSpikeTimes, curSpikeTimes, 500, dt);
-        contam(thisUnit) = min(Qi/(max(Q00, Q01)));
+    nSpikes(thisUnit) = length(curSpikeTimes);
+    if isempty(curSpikeTimes); continue; end
+    
+    [K, Qi, Q00, Q01, Ri] = ccg(curSpikeTimes, curSpikeTimes, 500, dt);
+    contam(thisUnit) = min(Qi/(max(Q00, Q01)));
+    % Q00:  measure of outer shoulder height, norm Poisson expectation
+    % Q01: inner shoulder height, norm. by Poisson expectation
+    % Qi: measure of inner refractory period height, different window
+    % sizes (1,2,3 bins etc)
         
-        % Exclude spikes whos waveform extends beyond recording
-        curSpikeTimes((curSpikeTimes+spkDur*10)*fs > nSamp) = []; % spikes extending past recording
-        curSpikeTimes((curSpikeTimes-spkOffset*10)*fs < 1) = []; % spikes starting before recording
-        curUnitnSpikes = size(curSpikeTimes,1);
-        
-        spikeTimesRP = curSpikeTimes(randperm(curUnitnSpikes));
-        spikeTimeKeeps = double(sort(spikeTimesRP(1:min([nWF curUnitnSpikes]))));
-        
-        mean_wave_filt = getSpikeWaveform(mmf, ...
-            spikeTimeKeeps, fs, spkOffset, spkDur);
-        waveFormsMean(:,:,thisUnit) = mean_wave_filt;
-    end
+    % Exclude spikes whos waveform extends beyond recording
+    curSpikeTimes((curSpikeTimes+spkDur*10)*fs > nSamp) = []; % spikes extending past recording
+    curSpikeTimes((curSpikeTimes-spkOffset*10)*fs < 1) = []; % spikes starting before recording
+    curUnitnSpikes = size(curSpikeTimes,1);
+    
+    spikeTimesRP = curSpikeTimes(randperm(curUnitnSpikes));
+    spikeTimeKeeps = double(sort(spikeTimesRP(1:min([nWF curUnitnSpikes]))));
+    
+    mean_wave_filt = getSpikeWaveform(mmf,spikeTimeKeeps, fs, spkOffset, spkDur);
+    waveFormsMean(:,:,thisUnit) = mean_wave_filt;
+    
+    % Get channel with largest amplitude, take that as the waveform
+    amps = max(mean_wave_filt)-min(mean_wave_filt);
+    [max_val,max_site] = max(amps); % Max site is the Intan channel number, so 1 = A-000
+    mxWF(thisUnit,:) = waveFormsMean(:,max_site,thisUnit)';
+    
+    %         K((length(K)+1)/2) = 0;
+    %         figure; subplot(2,2,1); plot(K); subplot(2,2,2); plot(Qi); title('Qi'); subplot(2,2,3); plot(Ri); title('Ri')
+    %         subplot(2,2,4); plot(mxWF(thisUnit,:),'k')
     disp(['Completed ' int2str(thisUnit) ' units of ' int2str(numUnits) '.']);
+    
 end
 
 % Get top PC of waveforms across channels
@@ -74,17 +91,7 @@ for i=1:numUnits
     pcWF(i,:) = wvSign * e(:,1)';
 end
 
-% Get channel with largest amplitude, take that as the waveform
-amps = squeeze(max(waveFormsMean)-min(waveFormsMean));
-[max_val,max_site] = max(amps);
-max_site = max_site(:); % Max site is the Intan channel number, so 1 = A-000
-mxWF = nan(numUnits,spkDurSamples);
-for i=1:numUnits
-    mxWF(i,:) = waveFormsMean(:,max_site(i),i)';
-end
-
-
 wvStruct = struct('mxWF',mxWF,'max_site',max_site,'pcWF',pcWF,'meanRate',meanRate,...
     'waveFormsMean',waveFormsMean,'spkDur',spkDur,'spkOffset',spkOffset,'goodIDs',goodIDs,...
-    'goodLabels',{goodLabels},'medISI',medISI,'contam',contam);
+    'goodLabels',{goodLabels},'medISI',medISI,'contam',contam,'nSpikes',nSpikes);
 end

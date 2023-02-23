@@ -12,7 +12,8 @@ rez = learnAndSolve8b(rez);      % main tracking and template matching algorithm
 
 % OPTIONAL: remove double-counted spikes - solves issue in which individual spikes are assigned to multiple templates.
 % See issue 29: https://github.com/MouseLand/Kilosort2/issues/29
-rez = remove_ks2_duplicate_spikes(rez,'overlap_s',5e-5,'channel_separation_um',30);
+% rez = remove_ks2_duplicate_spikes(rez,'overlap_s',5e-5,'channel_separation_um',30);
+rez = remove_ks2_duplicate_spikes(rez,'overlap_s',1e-4,'channel_separation_um',50); % Edit following SC
 
 % Final processing
 rez = find_merges(rez, 1);      % final merges

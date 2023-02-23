@@ -1,4 +1,4 @@
-function [stats, goodIDs, mxWF, tWF] = getGMM_stats(all_dir, option_only_good)
+function [stats, goodIDs, mxWF, tWF] = GMM_stats(all_dir, option_only_good)
 
 
 if istable(all_dir)
@@ -16,12 +16,10 @@ else
         wvStruct = getfield(load(fullfile(ks_dir,'waveformStruct.mat')),'wvStruct');
         wvStruct.goodIDs = wvStruct.goodIDs(:);
         wvStruct.goodLabels = wvStruct.goodLabels(:);
-        
+
         % Only keep "good" clusters. If sorted with Phy, this will be the final sorting
         if option_only_good
-            [unit_ID, cluster_labels] = get_phy_cluster_labels(ks_dir); % 0 = noise, 1 = 'mua', 2 = 'good'
-            if length(unit_ID) ~= length(wvStruct.goodIDs); error('Run waveform extraction after manual curation'); end
-            mask = strcmp(cluster_labels,'good');
+            mask = strcmp(wvStruct.goodLabels,'good');
             wvStruct.mxWF = wvStruct.mxWF(mask,:);
             wvStruct.max_site = wvStruct.max_site(mask,:);
             wvStruct.pcWF = wvStruct.pcWF(mask,:);
@@ -31,9 +29,12 @@ else
             wvStruct.goodLabels = wvStruct.goodLabels(mask);
             wvStruct.medISI = wvStruct.medISI(mask);
             wvStruct.contam = wvStruct.contam(mask);
+            wvStruct.nSpikes = wvStruct.nSpikes(mask);
         end
+%         figure; plot(wvStruct.mxWF','k'); title(all_dir{ii},'Interp','none')
+%         [a,b]=min(wvStruct.mxWF(:,1:50)');
+%         [~,c] = max(b)
         
-        % Add mxWF_d
         theseWaveforms(ii) = wvStruct;
     end
     fs = size(wvStruct.mxWF,2)/wvStruct.spkDur;
