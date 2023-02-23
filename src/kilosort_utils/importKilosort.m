@@ -5,8 +5,6 @@ function S = importKilosort(ksDir, fs, option_only_good, session_label)
 % S = IMPORTKILOSORT(filepath, fs) imports all available channels of sorted data
 % 	from the folder filepath, recorded at samplerate fs (usually 30000)
 % option_only_good: Set 1 to only load "good" cells (post manual phy sorting, if available)
-% option_orig: ignore any phy sorting and use categories assigned by kilosort
-%
 % session_label: a prefix added to each cell name (before K000 assigned unit number etc)
 %
 % Example:
@@ -33,6 +31,7 @@ inds_keep = inds_keep(:)';
 
 % Loop through units.
 S = dat;
+ii_out = 1;
 for ii = inds_keep
     
     % Cell ID
@@ -62,8 +61,15 @@ for ii = inds_keep
     info.wavefreq = fs;
     info.prethresh = fs*wvStruct.spkOffset;
     info.label = wvStruct.goodLabels{ii};
-    S(end+1) = dat(tt, chan_label, chan_val, 'event', tstart, tend, 's', cID, waveform, info) ;
     
+    % Load GMM results if available
+    if isfield(wvStruct,'typeLabels')
+        info.typeLabel = wvStruct.typeLabels{ii};
+    end
+    
+    % Store this cell
+    S(ii_out) = dat(tt, chan_label, chan_val, 'event', tstart, tend, 's', cID, waveform, info) ;
+    ii_out = ii_out+1;
 end
 
 

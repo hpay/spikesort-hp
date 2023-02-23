@@ -319,7 +319,7 @@ legend(hs(:,1),birds)
 exceptions = {'params.py','phy.log','.phy'};
 runmode = 0;
 for ii = 1:height(T)
-    disp(''); disp(T.filename{ii})
+    fprintf('\n%s\n',T.filename{ii})
     s1 = ks_dir_fun(fullfile(data_dir_process, T.filename{ii}));
     s2 = ks_dir_fun(fullfile(data_dir_remote, T.filename{ii}));
     dirbackup(s1, s2, runmode, exceptions)

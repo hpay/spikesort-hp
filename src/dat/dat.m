@@ -7,12 +7,12 @@ classdef dat %< hgsetget
     %         (discrete)
     %     'chanlabel' - string labels for each channel
     %     'chanval' - numeric values associated with each
-    %         channel (e.g. frequency at each bin for a spectrogram).
+    %         channel (e.g. frequency at each bin for a spectrogram, or channel of max amplitude).
     %     'samplerate' - samples/second (continuous), 'event' for event channel
     %     'tstart','tend' - time of first/last sample; in seconds.
     %     'units' - descriptive string giving units of data.
-    %     ('wavemark') - spike identity, only present for wavemark spk channel from spike2
-    %     ('waveform') - waveform only present for wavemark spk channel from spike2
+    %     ('wavemark') - unit ID from phy
+    %     ('waveform') - waveform 
     %     'info' - assorted notes (may only be present on first channel)
     %     'nbadstart' and 'nbadend' - samples at start/end of data that are
     %         unreliable due to filtering edge effects)
@@ -34,6 +34,7 @@ classdef dat %< hgsetget
     %         datout = resettime(obj);
     %         datout = dattimeind(obj,t) % returns data point at time t
     %         datout = deriv(obj);
+    %         datout = datcellfun(func, obj)
     %         cout = colorspec(cin) % helper fun
     %         t = dattime(obj, seg)
     %         h = plot(obj, varargin)
@@ -92,7 +93,7 @@ classdef dat %< hgsetget
             addOptional(p,'tstart',0,@isnumeric);
             addOptional(p,'tend',[],@isnumeric);
             addOptional(p,'units',{},@(x) ischar(x) || iscell(x) ||isempty(x) ||isnumeric(x));
-            addOptional(p,'wavemark',[]);
+            addOptional(p,'wavemark',[]); % e.g. cell ID
             addOptional(p,'waveform',[],@isnumeric);
             addOptional(p,'info',[], @(x) ischar(x) || iscell(x) ||isempty(x) || isnumeric(x) || isstruct(x));
             
@@ -191,6 +192,13 @@ classdef dat %< hgsetget
                 end
             end
             
+        end
+        
+        function dout = datcellfun(func,obj)    
+            dout = cell(size(obj));
+            for ii = 1:length(obj)
+               dout{ii} = func(obj(ii)); 
+            end
         end
         
         % Methods
@@ -298,7 +306,7 @@ classdef dat %< hgsetget
                                 datout(i).samplerate = obj(i).samplerate(mask);
                             end
                             
-                            if strcmp(chantype,'spk')
+                            if strcmp(chantype,'spk') && length(datout(i).wavemark)>1
                                 datout(i).waveform = datout(i).waveform(:,mask);
                                 datout(i).wavemark = datout(i).wavemark(mask);
                             end
@@ -465,7 +473,7 @@ classdef dat %< hgsetget
                     
                     % If multiple sorted spikes: mask for the selected
                     % wavemark codes if needed
-                    if strcmp(chantype,'spk')
+                    if strcmp(chantype,'spk') && length(obj.wavemark)>1
                         if ~exist('chan','var') || isempty('chan')
                             chan = unique(obj.wavemark);
                             chan = chan(chan>0);
