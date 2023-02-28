@@ -35,7 +35,7 @@ nSamp = filenamestruct.bytes/(nCh*2);  % Number of samples per channel (int16 is
 mmf = memmapfile(fDat, 'Format', {'int16', [nCh nSamp], 'x'});
 
 maxTime = double(max(spkSamp))/fs;
-
+max_site = NaN(numUnits,1);
 mxWF = nan(numUnits,spkDurSamples);
 nSpikes = NaN(numUnits,1);
 
@@ -68,8 +68,8 @@ for thisUnit=1:numUnits
     
     % Get channel with largest amplitude, take that as the waveform
     amps = max(mean_wave_filt)-min(mean_wave_filt);
-    [max_val,max_site] = max(amps); % Max site is the Intan channel number, so 1 = A-000
-    mxWF(thisUnit,:) = waveFormsMean(:,max_site,thisUnit)';
+    [max_val,max_site(thisUnit)] = max(amps); % Max site is the Intan channel number, so 1 = A-000
+    mxWF(thisUnit,:) = waveFormsMean(:,max_site(thisUnit),thisUnit)';
     
     %         K((length(K)+1)/2) = 0;
     %         figure; subplot(2,2,1); plot(K); subplot(2,2,2); plot(Qi); title('Qi'); subplot(2,2,3); plot(Ri); title('Ri')
