@@ -7,7 +7,7 @@ if istable(all_dir)
     mxWF = cell2mat([R.waveform]')';
     goodIDs = ones(size(meanRate));
     fs = 1e6;
-    tWF = ((0:size(mxWF,2)-1)/fs - 3e-4)*1e3;
+    tWF = ((0:size(mxWF,2)-1)/fs - 3.08e-4)*1e3;
 else
     
     if ~iscell(all_dir); all_dir = {all_dir}; end
@@ -18,7 +18,7 @@ else
         wvStruct.goodLabels = wvStruct.goodLabels(:);
 
         % Only keep "good" clusters. If sorted with Phy, this will be the final sorting
-        if option_only_good
+        if ~isempty(option_only_good) && option_only_good
             mask = strcmp(wvStruct.goodLabels,'good');
             wvStruct.mxWF = wvStruct.mxWF(mask,:);
             wvStruct.max_site = wvStruct.max_site(mask,:);

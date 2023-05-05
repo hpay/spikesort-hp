@@ -17,8 +17,10 @@ idx(mask1) = 0;
 % Categorize cells where 3. trough is not at expected time (>2 sigma) as unknown
 [~, mins] = min(mxWF,[],2);
 tmins = tWF(mins);
-mask_tmin = abs(tmins)>0.25*1e-3; % (s)
-% mask_tmin = abs((mins - mean(mins(idx>0)))/std(mins(idx>0)))>3;
+mean_t = mean(tmins(idx>0));
+std_t = std(tmins(idx>0));
+% mask_tmin = abs(tmins)>0.25*1e-3; % (s)
+mask_tmin = abs((tmins - mean_t)/std_t)>3;
 idx(mask_tmin) = 0;
 
 % Apply labels
