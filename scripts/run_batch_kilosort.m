@@ -2,8 +2,9 @@
 
 raw_dir_temp = which(mfilename);
 dropbox_folder = raw_dir_temp(1:strfind(raw_dir_temp,'Dropbox')+6);
-T = readtable(fullfile(dropbox_folder,'alab\Analysis\RECORDING_DEPTH_CHICK.xlsx'));
-T = T(T.include  & (strcmp(T.task,'X_gaze')|strcmp(T.task,'X_no_gaze')) ,:);
+% T = readtable(fullfile(dropbox_folder,'alab\Analysis\RECORDING_DEPTH_CHICK.xlsx'));
+T = readtable(fullfile(dropbox_folder,'alab\Code\project2\data\RECORDING_DEPTH_CHICK.xlsx'));
+T = T(T.include  & (strcmp(T.task,'X_gaze')|strcmp(T.task,'X_no_gaze')|strcmp(T.task,'X_fix')) ,:);
 fs = 3e4;
 
 % Overwrite kilosort output?
@@ -154,6 +155,7 @@ save('..\results\latestGMM_cellType.mat','gm','T')
 option_only_good = 0;
 plot_on = 0;
 for ii = 1:height(T)
+    disp(T.filename{ii})
     ks_dir = ks_dir_fun(fullfile(data_dir_local, T.filename{ii}));
     [idx,labels] = GMM_apply(gm, fullfile(data_dir_local, T.filename{ii}), option_only_good, plot_on);
     save(fullfile(ks_dir,'gmm_result.mat'),'idx','labels')
@@ -257,12 +259,13 @@ T.ratioE = T.nE./(T.nE+T.nI);
 disp(T(:,{'filename','depth','nE','nI','ratioE'}))
 
 figure;
-c = cool(3);
+cs = turbo(7);
 birds = unique(T.bird);
 hs = gobjects(length(birds),1);
 for ii = 1:length(birds)
     mask = strcmp(T.bird,birds{ii});
-    hs(ii) = plot(T.depth(mask), T.ratioE(mask),'o','Color',c(strcmp(birds, birds{ii}),:),'LineWidth',2); hold on
+    hs(ii) = plot(T.depth(mask), T.ratioE(mask),'o','Color',...
+        cs(strcmp(birds, birds{ii}),:),'LineWidth',2); hold on
 %         hs(ii) = plot(T.depth(mask), T.nE(mask)+T.nI(mask),'o','Color',c(strcmp(birds, birds{ii}),:),'LineWidth',2); hold on
 end
 xlabel('Depth (tip, mm)')
@@ -299,7 +302,7 @@ days_since_surgery = days(T.date-T.surgery);
 birds = unique(T.bird);
 figure;
 hold on
-cs = hsv(length(birds)+1);
+% cs = hsv(length(birds)+1);
 hs = gobjects(length(birds),2);
 for jj = 1:length(birds)
     mask =strcmp(T.bird, birds{jj});
