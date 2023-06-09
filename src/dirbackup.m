@@ -15,8 +15,8 @@ function dirbackup(s1, s2, runmode, exceptions)
 %   -1:     No backup performed. Trial run only with command line
 %           information.
 %   0:      Minimal user input mode. Only questions when the backup would
-%           involve updating a file that is newer in the backup directory.
-%           This is the default option.
+%           involve updating a file that is newer in the backup directory,
+%           [update] or deleting a file. This is the default option.
 %   1:      Safe mode. Questions most actions (significant user input
 %           required to do a backup), except for copying (without
 %           overwriting) files/directories to the backup directory.
@@ -62,12 +62,12 @@ end
 file2 = dir(s2);
 nfiles2 = length(file2);
 for i = nfiles2:-1:1
-   if (isequal(file2(i).name , '.') || isequal(file2(i).name , '..'))
-      file2(i) = [];
-   end
+    if (isequal(file2(i).name , '.') || isequal(file2(i).name , '..'))
+        file2(i) = []; continue;
+    end
     if exist('exceptions','var') && ismember(file2(i).name, exceptions)
-       file2(i) = [];
-   end
+        file2(i) = []; continue;
+    end
 end
 
 % Sort file names in current directory (ignoring case) ...
@@ -142,6 +142,8 @@ elseif (n2 > nfiles2)
    n1 = n1 + 1;
 end
 
+fprintf('\n')
+
 
 function loc_update(srcdir, srcfile, tgtdir, tgtfile, runmode)
 % Default choice is to continue the backup ...
@@ -210,7 +212,7 @@ end
 function loc_deletefile(target, runmode)
 % Default choice is to continue the backup ...
 R = 'y';
-if (runmode == 1)
+if (runmode >= 0) % Edited to avoid accidentally deleting files! HP 6/9/23
    fprintf('\nThe file ''%s'' is no longer in the source directory. ', target);
    R = input('Delete? (y/n/q) ', 's');
 end

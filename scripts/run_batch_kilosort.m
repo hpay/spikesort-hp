@@ -1,5 +1,6 @@
 %% Generate list of directories to run kilosort on
-
+%
+% Instructions: Update RECORDING_DEPTH_CHICK.xlsx then run this script
 raw_dir_temp = which(mfilename);
 dropbox_folder = raw_dir_temp(1:strfind(raw_dir_temp,'Dropbox')+6);
 % T = readtable(fullfile(dropbox_folder,'alab\Analysis\RECORDING_DEPTH_CHICK.xlsx'));
@@ -12,7 +13,7 @@ overwrite = 0;
 
 % Data folder
 data_dir_remote = 'Z:\Hannah\Ephys\Project2';
-data_dir_local = 'D:\temp'; 
+data_dir_local = 'D:\data'; 
 
 % Save dir
 ks_dir_fun = @(root_dir) fullfile(root_dir,'kilosort2_output');
@@ -29,17 +30,14 @@ addpath(genpath(fullfile(spikesort_hp_dir,'src')))
 warning("off","parallel:gpu:device:DeviceDeprecated");
 addpath(genpath(fullfile(code_dir, 'kilosort-2.0'))) % Add kilosort2 directory
 
-%% Copy data to local data SSD
+%% Backup from local SSD to server
+exceptions = {'kilosort2_output'}; % Back this up specifically later
+runmode = 0;
 for ii = 1:height(T)
-    
-    % Root dir on server (Z:\Hannah\ephys\HC11_230129 etc)
-    root_dir_remote = fullfile(data_dir_remote, T.filename{ii});
-    root_dir_local = fullfile(data_dir_local, T.filename{ii});
-
-    if ~exist(root_dir_local,'dir') && exist(root_dir_remote,'dir')
-        copyfile(root_dir_remote, root_dir_local)
-    end
-        
+    fprintf('\n%s\n',T.filename{ii})
+    root_dir_local = fullfile(data_dir_local, T.filename{ii});  % e.g. D:\data\HC11_230129 
+    root_dir_remote = fullfile(data_dir_remote, T.filename{ii}); % e.g. Z:\Hannah\ephys\HC11_230129 
+    dirbackup(root_dir_local, root_dir_remote, runmode, exceptions)
 end
 
 %% Run Kilosort2 
@@ -94,7 +92,6 @@ for ii = 1:height(T)
     fid = fopen(fullfile(save_dir_remote,'params.py'), 'w'); % Write correct params.py to remote server
     for jj = 1:length(a); fprintf(fid,a{jj});      end
     fclose(fid);
-    
     fprintf('Results copied to server!\n')
     
 end
@@ -102,7 +99,6 @@ end
 %% Manually label results in Phy! 
 % disp('Manually sort now!')
 % keyboard
-data_dir_process = data_dir_local
 
 
 %% Get waveforms for all sessions in table T
@@ -110,7 +106,7 @@ only_good = 0; % Process all for now, select good later
 for ii = 1:height(T)
     
     % Find the binary directory
-    root_dir = fullfile(data_dir_process, T.filename{ii});
+    root_dir = fullfile(data_dir_local, T.filename{ii});
     raw_dir_temp = dir(fullfile(root_dir, 'raw*'));
     raw_dir = fullfile(raw_dir_temp.folder, raw_dir_temp.name);
     ks_dir = ks_dir_fun(root_dir);
@@ -144,14 +140,17 @@ for ii = 1:height(T)
     
 end
 
-%% Generate GMM based on all curated sessions
+%% Generate GMM based on all curated sessions - rerun after sorting new sessions
+%{
 T_load = T(strcmp(T.manually_sorted,'yes'),:);
 option_only_good = 1;
 n_clusters = 2;
 gm = GMM_make(cellfun(@(x) fullfile(data_dir_local, x), T_load.filename,'Uni',0), option_only_good, n_clusters);
 save('..\results\latestGMM_cellType.mat','gm','T')
+%}
 
 %% Apply GMM results to all sessions
+load('..\results\latestGMM_cellType.mat','gm')
 option_only_good = 0;
 plot_on = 0;
 for ii = 1:height(T)
@@ -169,7 +168,7 @@ min_spikes_mua = 20; % Label units with less than 20 spikes as noise
 
 for ii = 1:height(T)
     % Find the KS directory
-    ks_dir = ks_dir_fun(fullfile(data_dir_process, T.filename{ii}));
+    ks_dir = ks_dir_fun(fullfile(data_dir_local, T.filename{ii}));
         
     % Check if manually curated - make sure to record in the excel table!!!
     disp(T.filename{ii})
@@ -247,7 +246,7 @@ end
 %% Plot fraction E v. depth - good+ mua
 nE = []; nI = [];
  for ii = 1:height(T)
-     ks_dir = ks_dir_fun(fullfile(data_dir_process, T.filename{ii}));
+     ks_dir = ks_dir_fun(fullfile(data_dir_local, T.filename{ii}));
      wvStruct = getfield(load(fullfile(ks_dir, 'waveformStruct.mat')), 'wvStruct');     
 %      nE(ii) = nnz(strcmp(wvStruct.goodLabels,'good') & strcmp(wvStruct.typeLabels,'E'));
 %      nI(ii) = nnz(strcmp(wvStruct.goodLabels,'good') & strcmp(wvStruct.typeLabels,'I'));
@@ -275,14 +274,14 @@ grid
 legend(birds)
 ylim([0 1])
 
-%% Plot the number of "good" cells (manual and KS labelled)
+%% Plot the number of "good" cells (manual and KS labelled) v. days since implant
 disp(T(:,{'filename','depth','manually_sorted','probe_chanmap','bad_chan','notes'}))
 disp('Counting total cells')
 ngood_final= [];
 ngood_orig = [];
 for ii = 1:height(T)
     % Find the binary directory
-    root_dir = fullfile(data_dir_process, T.filename{ii});
+    root_dir = fullfile(data_dir_local, T.filename{ii});
     raw_dir_temp = dir(fullfile(root_dir, 'raw*'));
     raw_dir = fullfile(raw_dir_temp.folder, raw_dir_temp.name);
     ks_dir = ks_dir_fun(root_dir);
@@ -318,12 +317,12 @@ ylim([0 max(ngood_orig)+2])
 grid on
 legend(hs(:,1),birds)
 
-%% Backup results
+%% Backup kilosort results
 exceptions = {'params.py','phy.log','.phy'};
 runmode = 0;
 for ii = 1:height(T)
     fprintf('\n%s\n',T.filename{ii})
-    s1 = ks_dir_fun(fullfile(data_dir_process, T.filename{ii}));
+    s1 = ks_dir_fun(fullfile(data_dir_local, T.filename{ii}));
     s2 = ks_dir_fun(fullfile(data_dir_remote, T.filename{ii}));
     dirbackup(s1, s2, runmode, exceptions)
 end
