@@ -37,6 +37,7 @@ for ii = 1:height(T)
     fprintf('\n%s\n',T.filename{ii})
     root_dir_local = fullfile(data_dir_local, T.filename{ii});  % e.g. D:\data\HC11_230129 
     root_dir_remote = fullfile(data_dir_remote, T.filename{ii}); % e.g. Z:\Hannah\ephys\HC11_230129 
+    mkdir(root_dir_remote)
     dirbackup(root_dir_local, root_dir_remote, runmode, exceptions)
 end
 
