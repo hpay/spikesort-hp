@@ -5,7 +5,7 @@ raw_dir_temp = which(mfilename);
 dropbox_folder = raw_dir_temp(1:strfind(raw_dir_temp,'Dropbox')+6);
 % T = readtable(fullfile(dropbox_folder,'alab\Analysis\RECORDING_DEPTH_CHICK.xlsx'));
 T = readtable(fullfile(dropbox_folder,'alab\Code\project2\data\RECORDING_DEPTH_CHICK.xlsx'));
-T = T(T.include  & (strcmp(T.task,'X_gaze')|strcmp(T.task,'X_no_gaze')|strcmp(T.task,'X_fix')) ,:);
+T = T(T.include  & (strncmpi(T.task,'X_rep',5)) ,:);
 fs = 3e4;
 
 % Overwrite kilosort output?
@@ -327,3 +327,4 @@ for ii = 1:height(T)
     s2 = ks_dir_fun(fullfile(data_dir_remote, T.filename{ii}));
     dirbackup(s1, s2, runmode, exceptions)
 end
+

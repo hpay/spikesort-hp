@@ -30,23 +30,13 @@ if (nargin < 3)
    runmode = 0;
 end
 
+% Make new folder in backup directory if needed
+if ~exist(s2, 'dir'); mkdir(s2); end 
+
 tmp = what(s1);
 s1 = tmp.path;
-tmp = what(s2);
+tmp = what(s2); 
 s2 = tmp.path;
-
-if ~exist(s2, 'dir')
-   fprintf('\nBackup folder does not yet exist. ');
-   R = input('Do you want to create the folder and copy the source? (y/n) ', 's');
-   if strcmpi(R, 'y')
-      [status, out] = system(sprintf('xcopy "%s" "%s" /E /I /R /K /H /Y', s1, s2));
-      if status
-         fprintf('Backup failed.');
-      end
-   else
-      fprintf('\nBackup process cancelled by user.');
-   end
-end
 
 % Remove the '.' and '..' from the file structure arrays
 file1 = dir(s1);
@@ -142,7 +132,7 @@ elseif (n2 > nfiles2)
    n1 = n1 + 1;
 end
 
-fprintf('\n')
+% fprintf('\n')
 
 
 function loc_update(srcdir, srcfile, tgtdir, tgtfile, runmode)
@@ -161,7 +151,7 @@ else
    R = input('\nAre you sure you wish to overwrite the target file? (y/n/q)  ', 's');
 end
 ok = getanswer(R);
-fprintf('\n''%s'' ... ', [tgtdir, '\', tgtfile.name]);
+fprintf('%s ... ', fullfile(tgtdir, tgtfile.name));
 if ok
    if (runmode >= 0)
       [status, out] = system(sprintf('xcopy "%s" "%s" /K /H /Y /Q', source, target));
@@ -169,12 +159,12 @@ if ok
       status = 0;
    end
    if status
-      fprintf('An unforeseen error occurred during the backup process.\nThe file ''%s'' could not be copied to ''%s''.\nSystem message: %s', source, target, out);
+      fprintf('An unforeseen error occurred during the backup process.\nThe file ''%s'' could not be copied to ''%s''.\nSystem message: %s\n', source, target, out);
    else
-      fprintf('[UPDATED]');
+      fprintf('[UPDATED]\n');
    end
 else
-   fprintf('[SKIPPED]');
+   fprintf('[SKIPPED]\n');
 end
 
 % Local copy function ...
@@ -196,16 +186,16 @@ if srcfile.isdir
 else
    target = [target, '\.'];
 end
-fprintf('\n%s ... ', source);
+fprintf('%s ... ', fullfile(tgtdir, srcfile.name));
 if (runmode >= 0)
    [status, out] = system(sprintf('xcopy "%s" "%s" /E /K /H /Y /Q', source, target));
 else
    status = 0;
 end
 if status
-   fprintf('An unforeseen error occurred during the backup process.\nThe file/directory ''%s'' could not be copied to ''%s''.\nSystem message: %s', source, target, out);
+   fprintf('An unforeseen error occurred during the backup process.\nThe file/directory ''%s'' could not be copied to ''%s''.\nSystem message: %s\n', source, target, out);
 else
-   fprintf('[COPIED]');
+   fprintf('[COPIED]\n');
 end
 
 %Local file delete function ...
@@ -213,7 +203,7 @@ function loc_deletefile(target, runmode)
 % Default choice is to continue the backup ...
 R = 'y';
 if (runmode >= 0) % Edited to avoid accidentally deleting files! HP 6/9/23
-   fprintf('\nThe file ''%s'' is no longer in the source directory. ', target);
+   fprintf('\nThe file ''%s'' is no longer in the source directory. \n', target);
    R = input('Delete? (y/n/q) ', 's');
 end
 % Go through potential user options and retrieve answer ...
@@ -228,10 +218,10 @@ if ok
    if status
       fprintf('An unforeseen error occurred during the backup process.\nThe file ''%s'' could not be deleted.\nSystem message: %s', target, out);
    else
-      fprintf('[DELETED]');
+      fprintf('[DELETED]\n');
    end
 else
-   fprintf('[SKIPPED]');
+   fprintf('[SKIPPED]\n');
 end
 
 % Local directory delete function ...
@@ -239,7 +229,7 @@ function loc_deletedir(target, runmode)
 % Default choice is to continue the backup ...
 R = 'y';
 if (runmode == 1)
-   fprintf('\nThe directory ''%s'' is no longer in the source directory. ', target);
+   fprintf('\nThe directory ''%s'' is no longer in the source directory. \n', target);
    R = input('Delete? (y/n/q) ', 's');
 end
 % Go through potential user options and retrieve answer ...
@@ -254,10 +244,10 @@ if ok
    if status
       fprintf('An unforeseen error occurred during the backup process.\nThe directory ''%s'' could not be deleted.\nSystem message: %s', target, out);
    else
-      fprintf('[DELETED]');
+      fprintf('[DELETED]\n');
    end
 else
-   fprintf('[SKIPPED]');
+   fprintf('[SKIPPED]\n');
 end
 
 function ok = getanswer(R)
