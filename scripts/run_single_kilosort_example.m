@@ -3,9 +3,6 @@ addpath(genpath('D:\hannah\Dropbox\code\spikesort\kilosort-2.0'))
 addpath(genpath('..\src')) % overloaded functions run_single_kilosort
 
 % Select file and probe
-% raw_dir = 'Z:\Hannah\ephys\project2\HC09_221104\raw_221104_121402';
-% raw_dir = 'Z:\Hannah\ephys\project2\HC10_221219\raw_221219_140912';
-% raw_dir = 'Z:\Hannah\ephys\project2\HC10_230103\raw_230103_141139';
 raw_dir = 'Z:\Hannah\ephys\project2\HC10_230106\raw_230106_140916';
 ops = []; ops.chanMap = 'H6.mat';
 
@@ -26,11 +23,11 @@ wvStruct = getSessionWaveforms(raw_dir, save_dir, 0);
 save(fullfile(save_dir, 'waveformStruct.mat'), 'wvStruct')
 
 % Load spikes into my dat structure in matlab
-option_only_good= 1;
+option_only_good = 1;
 S = importKilosort(save_dir, ops.fs, option_only_good);
 disp(S)
 
-% Run phy to inspect it! (TODO)
+% Run phy to inspect it! 
 % In Anaconda prompt:
 %   conda activate phy_env
 % Navigate to folder with kilosort results (Type Z: to change to engram drive. then cd path. )

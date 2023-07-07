@@ -50,9 +50,6 @@ for ii = inds_keep
     tstart = min(tt);
     tend = max(tt);
     
-    % Store as dat structure
-    %  S(ii) = dat(tt, chan_label, chan_val, 'event', tstart, tend, 's') ;
-    
     % Include waveform and store as dat structure
     %  waveform = wvStruct.pcWF(ii,:); % pcWF stores top PC (NOT in uV)!
     %  info.waveunit = 'A.U.';

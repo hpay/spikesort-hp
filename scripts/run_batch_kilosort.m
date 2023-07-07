@@ -1,34 +1,47 @@
-%% Generate list of directories to run kilosort on
-%
-% Instructions: Update RECORDING_DEPTH_CHICK.xlsx then run this script
-raw_dir_temp = which(mfilename);
-dropbox_folder = raw_dir_temp(1:strfind(raw_dir_temp,'Dropbox')+6);
-% T = readtable(fullfile(dropbox_folder,'alab\Analysis\RECORDING_DEPTH_CHICK.xlsx'));
-T = readtable(fullfile(dropbox_folder,'alab\Code\project2\data\RECORDING_DEPTH_CHICK.xlsx'));
-T = T(T.include  & (strncmpi(T.task,'X_rep',5)) ,:);
-fs = 3e4;
+%% Script for batch processing kilosort spike sorting
+% and backing up recently collected data to server!
+% 
+% Instructions: Update RECORDING_DEPTH_CHICK.xlsx then run this script from
+% within the scripts folder
+% 
+% Necessary column names in spreadsheet: 
+%   filename: name of the session directory
+%   bad_chan: list any bad channels in this format: [1, 6, 10]. If none: [] 
+%   probe_chanmap: name of probe {H5, H6}
+%   manually_sorted: 1 if manually curated in phy, 0 otherwise 
 
-% Overwrite kilosort output?
+T = readtable('C:\Users\Hannah\Dropbox\alab\Code\project2\data\RECORDING_DEPTH_CHICK.xlsx');
+T = T(T.include>0,:);
+
+% Re-spike sort and overwrite kilosort output?
 overwrite = 0;
 
-% Data folder
-data_dir_remote = 'Z:\Hannah\Ephys\Project2';
-data_dir_local = 'D:\data'; 
+% Data folder 
+data_dir_local = 'D:\data';  % faster to process on locally saved files
+data_dir_remote = 'Z:\Hannah\Ephys\Project2'; % Location to backup to
 
-% Save dir
-ks_dir_fun = @(root_dir) fullfile(root_dir,'kilosort2_output');
+% Only process data that is actually present!
+fnames = dir(data_dir_local);
+fnames = {fnames.name};
+T = T(ismember(T.filename, fnames),:);
 
-% Results folder (GMM etc)
-addpath('..\results')
+% Save directory function -- ks results for each session saved here
+ksDirFun = @(root_dir) fullfile(root_dir,'kilosort2_output');
 
-%% set up code folders
-% Copy spike sorting results and raw data for post-processing and analysis. NOT backed up - make sure to copy anything saved here back to server or have code to reproduce!
-scripts_dir = cd;
+% Repository folder
+scripts_dir = fileparts(which(mfilename));
 spikesort_hp_dir = fileparts(scripts_dir);
-code_dir = fileparts(spikesort_hp_dir);
 addpath(genpath(fullfile(spikesort_hp_dir,'src')))
-warning("off","parallel:gpu:device:DeviceDeprecated");
-addpath(genpath(fullfile(code_dir, 'kilosort-2.0'))) % Add kilosort2 directory
+
+% Add kilosort2.0 directory (from: https://github.com/MouseLand/Kilosort/releases/tag/v2.0)
+code_dir = fileparts(spikesort_hp_dir); % 
+addpath(genpath(fullfile(code_dir, 'kilosort-2.0'))) 
+
+% Common results folder (GMM etc)
+results_dir = fullfile(fileparts(scripts_dir), 'results');
+addpath(results_dir);
+
+% warning("off","parallel:gpu:device:DeviceDeprecated");
 
 %% Backup from local SSD to server
 exceptions = {'kilosort2_output'}; % Back this up specifically later
@@ -37,22 +50,21 @@ for ii = 1:height(T)
     fprintf('\n%s\n',T.filename{ii})
     root_dir_local = fullfile(data_dir_local, T.filename{ii});  % e.g. D:\data\HC11_230129 
     root_dir_remote = fullfile(data_dir_remote, T.filename{ii}); % e.g. Z:\Hannah\ephys\HC11_230129 
-    mkdir(root_dir_remote)
+    if ~exist(root_dir_local,'dir'); continue; end
     dirbackup(root_dir_local, root_dir_remote, runmode, exceptions)
 end
 
 %% Run Kilosort2 
 for ii = 1:height(T)
     % Root dir on server (Z:\Hannah\ephys\HC11_230129 etc)
-    root_dir_remote = fullfile(data_dir_remote, T.filename{ii});
     root_dir_local = fullfile(data_dir_local, T.filename{ii});
-
+    
     % Find the binary directory
     raw_dir_temp = dir(fullfile(root_dir_local, 'raw*'));
     raw_dir = fullfile(raw_dir_temp.folder, raw_dir_temp.name);
     
     % Create save directory
-    ks_dir = ks_dir_fun(root_dir_local);
+    ks_dir = ksDirFun(root_dir_local);
     
     % If it exists already, either overwrite or skip
     if ~isempty(dir(fullfile(ks_dir,'*.npy')))
@@ -63,7 +75,7 @@ for ii = 1:height(T)
             catch
             end
         else
-            fprintf('Skipping %s\n', T.filename{ii})
+            fprintf('Already sorted %s\n', T.filename{ii})
             continue;
         end
     end
@@ -81,25 +93,24 @@ for ii = 1:height(T)
     run_single_kilosort(raw_dir, ks_dir, ops);       
     
     % Copy kilosort output to the server
-    save_dir_remote = ks_dir_fun(root_dir_remote);
-    copyfile(ks_dir, save_dir_remote)   
+    root_dir_remote = fullfile(data_dir_remote, T.filename{ii});
+    ks_dir_remote = ksDirFun(root_dir_remote);
+    copyfile(ks_dir, ks_dir_remote)   
     
     % Edit params.py to reflect new amplifier.dat location
     fid = fopen(fullfile(ks_dir,'params.py'), 'r'); % Read params.py from local copy
-    a = {};
-    while ~feof(fid); a{end+1} = fgets(fid);  pause(.001);  end
+    a = {}; while ~feof(fid); a{end+1} = fgets(fid);  pause(.0001);  end
     fclose(fid);
     a{1} = sprintf("dat_path = '%s'\n", strrep(fullfile(root_dir_remote, raw_dir_temp.name, 'amplifier.dat'),'\','/'));
-    fid = fopen(fullfile(save_dir_remote,'params.py'), 'w'); % Write correct params.py to remote server
+    fid = fopen(fullfile(ks_dir_remote,'params.py'), 'w'); % Write correct params.py to remote server
     for jj = 1:length(a); fprintf(fid,a{jj});      end
     fclose(fid);
     fprintf('Results copied to server!\n')
     
 end
 
-%% Manually label results in Phy! 
-% disp('Manually sort now!')
-% keyboard
+%% Go manually label results in Phy! 
+
 
 
 %% Get waveforms for all sessions in table T
@@ -110,7 +121,7 @@ for ii = 1:height(T)
     root_dir = fullfile(data_dir_local, T.filename{ii});
     raw_dir_temp = dir(fullfile(root_dir, 'raw*'));
     raw_dir = fullfile(raw_dir_temp.folder, raw_dir_temp.name);
-    ks_dir = ks_dir_fun(root_dir);
+    ks_dir = ksDirFun(root_dir);
     
     % Check if already done with the latest sorting unit labels
     if exist(fullfile(ks_dir, 'waveformStruct.mat'),'file')
@@ -125,7 +136,7 @@ for ii = 1:height(T)
             
         % Check if units are identical, but labels (good/mua/noise) need to be updated
         elseif length(unit_ID)==length(wvStruct.goodIDs) && all(unit_ID(:)==wvStruct.goodIDs(:)) && ~all(strcmp(wvStruct.goodLabels,cluster_labels))
-            % Resave in case any updates to KS labels
+            % Re-save in case any updates to KS labels
             wvStruct.goodLabels = cluster_labels;
             save(fullfile(ks_dir,'waveformStruct.mat'),'wvStruct')
             continue;
@@ -137,39 +148,39 @@ for ii = 1:height(T)
     disp(T(ii,:))
     wvStruct = getSessionWaveforms(raw_dir, ks_dir, only_good);
     save(fullfile(ks_dir, 'waveformStruct.mat'), 'wvStruct','-v7.3')
-    save(fullfile(ks_dir_fun(fullfile(data_dir_remote, T.filename{ii})), 'waveformStruct.mat'), 'wvStruct','-v7.3')
+    save(fullfile(ksDirFun(fullfile(data_dir_remote, T.filename{ii})), 'waveformStruct.mat'), 'wvStruct','-v7.3')
     
 end
 
 %% Generate GMM based on all curated sessions - rerun after sorting new sessions
-%{
+% %{
 T_load = T(strcmp(T.manually_sorted,'yes'),:);
 option_only_good = 1;
 n_clusters = 2;
 gm = GMM_make(cellfun(@(x) fullfile(data_dir_local, x), T_load.filename,'Uni',0), option_only_good, n_clusters);
-save('..\results\latestGMM_cellType.mat','gm','T')
+save(fullfile(results_dir, 'latestGMM_cellType.mat'),'gm','T')
 %}
 
 %% Apply GMM results to all sessions
-load('..\results\latestGMM_cellType.mat','gm')
+gm = getfield(load(fullfile(results_dir, 'latestGMM_cellType.mat')),'gm');
 option_only_good = 0;
 plot_on = 0;
 for ii = 1:height(T)
     disp(T.filename{ii})
-    ks_dir = ks_dir_fun(fullfile(data_dir_local, T.filename{ii}));
+    ks_dir = ksDirFun(fullfile(data_dir_local, T.filename{ii}));
     [idx,labels] = GMM_apply(gm, fullfile(data_dir_local, T.filename{ii}), option_only_good, plot_on);
     save(fullfile(ks_dir,'gmm_result.mat'),'idx','labels')
 end
 
-%% Apply basic sorting quality metrics
+%% Apply basic sorting quality metrics to uncurated sessions
 max_contam_good = 0.10;
 max_contam_mua = 1;
-min_spikes_good = 50; % Label units with less than 50 spikes as mua
-min_spikes_mua = 20; % Label units with less than 20 spikes as noise 
+min_spikes_good = 50; % Label units with less than N spikes as mua
+min_spikes_mua = 20;  % Label units with less than N spikes as noise 
 
 for ii = 1:height(T)
     % Find the KS directory
-    ks_dir = ks_dir_fun(fullfile(data_dir_local, T.filename{ii}));
+    ks_dir = ksDirFun(fullfile(data_dir_local, T.filename{ii}));
         
     % Check if manually curated - make sure to record in the excel table!!!
     disp(T.filename{ii})
@@ -203,24 +214,26 @@ for ii = 1:height(T)
     cluster_id = T_cluster_ContamPct_old.cluster_id;
     T_cluster_KSLabel_old = readtable(fullfile(ks_dir, 'cluster_KSLabel_orig.tsv'),'FileType','Text');
         
-
     % Label units according to contamination
     mask_noise = wvStruct.contam>max_contam_mua | wvStruct.nSpikes<min_spikes_mua;
     mask_good = ~mask_noise & (wvStruct.contam<max_contam_good & ~isnan(wvStruct.contam) & wvStruct.nSpikes>min_spikes_good);
-    
     
     % Label units according to GMM
     mask_good = mask_good & ismember(gm_result.labels,{'E','I'});
     mask_noise = mask_noise | ismember(gm_result.labels,{'extreme_outlier','unknown'});
     mask_mua = ~mask_noise & ~mask_good;
+    if nnz(mask_mua)+nnz(mask_good)+nnz(mask_noise) ~= length(mask_noise); error('check masks'); end
 
     % TODO: Label units according to firing rate stability
     
-    if nnz(mask_mua)+nnz(mask_good)+nnz(mask_noise) ~= length(mask_noise); error('check masks'); end
-    
-%     figure('Pos',[209 266 1065 300]); subplot(1,3,1); plot(wvStruct.mxWF(mask_good,:)','g'); subplot(1,3,2);  plot(wvStruct.mxWF(mask_mua,:)','k');  subplot(1,3,3); plot(wvStruct.mxWF(mask_noise,:)','r');
-%     linkaxes; ylim([-1.2 .6]*1e3); 
-%     title(T.filename{ii},'Interp','none');
+    %{ 
+    figure;  % PLOT results
+    subplot(2,2,1); plot(wvStruct.mxWF(mask_good&strcmp(gm_result.labels,'E'),:)','r');  title({T.filename{ii}, 'E'},'Interp','none'); grid on
+    subplot(2,2,2); plot(wvStruct.mxWF(mask_good&strcmp(gm_result.labels,'I'),:)','b');  title('I'); grid on
+    subplot(2,2,3); plot(wvStruct.mxWF(mask_mua,:)','k');  title('MUA'); grid on
+    subplot(2,2,4); plot(wvStruct.mxWF(mask_noise,:)','Color',.3*[1 1 1]); title('Noise'); grid on
+    linkaxes; ylim([-1.2 .6]*1e3); 
+    %}
     
     % Save new "good", "mua", "noise" labels
     KSLabel = cell(length(cluster_id),1);
@@ -228,7 +241,6 @@ for ii = 1:height(T)
     KSLabel(mask_mua) = deal({'mua'});
     KSLabel(mask_noise) = deal({'noise'});
     fprintf('%s: ngood new %i, ngood orig %i\n', T.filename{ii}, nnz(mask_good), nnz(strcmp(T_cluster_KSLabel_old.KSLabel,'good')))
-
     T_cluster_KSLabel_new = table(cluster_id, KSLabel);
     writetable(T_cluster_KSLabel_new, fullfile(ks_dir, 'cluster_KSLabel.tsv'),'FileType','Text','Delimiter','tab','WriteVariableNames',true);
     writetable(T_cluster_KSLabel_new, fullfile(ks_dir, 'cluster_group.tsv'),'FileType','Text','Delimiter','tab','WriteVariableNames',true);
@@ -244,87 +256,16 @@ for ii = 1:height(T)
     save(fullfile(ks_dir, 'waveformStruct.mat'),'wvStruct')
 end
 
-%% Plot fraction E v. depth - good+ mua
-nE = []; nI = [];
- for ii = 1:height(T)
-     ks_dir = ks_dir_fun(fullfile(data_dir_local, T.filename{ii}));
-     wvStruct = getfield(load(fullfile(ks_dir, 'waveformStruct.mat')), 'wvStruct');     
-%      nE(ii) = nnz(strcmp(wvStruct.goodLabels,'good') & strcmp(wvStruct.typeLabels,'E'));
-%      nI(ii) = nnz(strcmp(wvStruct.goodLabels,'good') & strcmp(wvStruct.typeLabels,'I'));
-     nE(ii) = nnz(ismember(wvStruct.goodLabels,{'good','mua'}) & strcmp(wvStruct.typeLabels,'E'));
-     nI(ii) = nnz(ismember(wvStruct.goodLabels,{'good','mua'}) & strcmp(wvStruct.typeLabels,'I'));
- end
- T.nE = nE(:); T.nI= nI(:);
-T.ratioE = T.nE./(T.nE+T.nI);
-disp(T(:,{'filename','depth','nE','nI','ratioE'}))
-
-figure;
-cs = turbo(7);
-birds = unique(T.bird);
-hs = gobjects(length(birds),1);
-for ii = 1:length(birds)
-    mask = strcmp(T.bird,birds{ii});
-    hs(ii) = plot(T.depth(mask), T.ratioE(mask),'o','Color',...
-        cs(strcmp(birds, birds{ii}),:),'LineWidth',2); hold on
-%         hs(ii) = plot(T.depth(mask), T.nE(mask)+T.nI(mask),'o','Color',c(strcmp(birds, birds{ii}),:),'LineWidth',2); hold on
-end
-xlabel('Depth (tip, mm)')
-ylabel('Fraction of cells E')
-% ylabel('Total cells E+I')
-grid
-legend(birds)
-ylim([0 1])
-
-%% Plot the number of "good" cells (manual and KS labelled) v. days since implant
-disp(T(:,{'filename','depth','manually_sorted','probe_chanmap','bad_chan','notes'}))
-disp('Counting total cells')
-ngood_final= [];
-ngood_orig = [];
-for ii = 1:height(T)
-    % Find the binary directory
-    root_dir = fullfile(data_dir_local, T.filename{ii});
-    raw_dir_temp = dir(fullfile(root_dir, 'raw*'));
-    raw_dir = fullfile(raw_dir_temp.folder, raw_dir_temp.name);
-    ks_dir = ks_dir_fun(root_dir);
-
-    % Latest labels saved by Phy
-    [unit_ID,cluster_labels] = get_phy_cluster_labels(ks_dir);
-    ngood_final(ii) = nnz(strcmp(cluster_labels,'good'));
-
-    % Original good labels (stored in 'rez.mat')
-    good_orig = getfield(load(fullfile(ks_dir,'rez.mat'),'good'),'good');
-    ngood_orig(ii) = nnz(good_orig);
-    
-end
-
-% Plot the number of "good" cells per session
-days_since_surgery = days(T.date-T.surgery);
-birds = unique(T.bird);
-figure;
-hold on
-% cs = hsv(length(birds)+1);
-hs = gobjects(length(birds),2);
-for jj = 1:length(birds)
-    mask =strcmp(T.bird, birds{jj});
-    mask_manual = strcmp(T.manually_sorted,'yes');
-    hs(jj,1) = plot(days_since_surgery(mask), ngood_orig(mask),'-o','Color',cs(jj,:),'MarkerFaceColor','w','MarkerEdgeColor',cs(jj,:));
-    if any(mask_manual&mask)
-    plot(days_since_surgery(mask&mask_manual), ngood_final(mask&mask_manual),'o','Color',cs(jj,:),'MarkerFaceColor',cs(jj,:),'MarkerEdgeColor',cs(jj,:));
-    end
-    hold on;
-end
-xlabel('Days since surgery'); ylabel('# "good" cells')
-ylim([0 max(ngood_orig)+2])
-grid on
-legend(hs(:,1),birds)
 
 %% Backup kilosort results
 exceptions = {'params.py','phy.log','.phy'};
 runmode = 0;
 for ii = 1:height(T)
     fprintf('\n%s\n',T.filename{ii})
-    s1 = ks_dir_fun(fullfile(data_dir_local, T.filename{ii}));
-    s2 = ks_dir_fun(fullfile(data_dir_remote, T.filename{ii}));
+    s1 = ksDirFun(fullfile(data_dir_local, T.filename{ii}));
+    s2 = ksDirFun(fullfile(data_dir_remote, T.filename{ii}));
     dirbackup(s1, s2, runmode, exceptions)
 end
 
+%% Optional plotting of # of cells and E/I ratio
+plotBasicResults(T, data_dir_local, ksDirFun)
