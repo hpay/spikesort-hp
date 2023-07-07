@@ -1,4 +1,4 @@
-function [unit_ID,cluster_labels] = get_phy_cluster_labels(ksDir)
+function [unit_ID,cluster_labels] = getPhyClusterLabels(ksDir)
 % reads cluster_group.tsv from kilosort/phy, and gets cluster labels
 
 fid = fopen(fullfile(ksDir,'cluster_group.tsv'));

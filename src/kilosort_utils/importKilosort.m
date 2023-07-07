@@ -14,7 +14,7 @@ function S = importKilosort(ksDir, fs, option_only_good, session_label)
 tm = readNPY(fullfile(ksDir,'spike_times.npy'));
 tm = double(tm)/fs;
 sID = readNPY(fullfile(ksDir,'spike_clusters.npy'));
-% [cIDs, cluster_labels] = get_phy_cluster_labels(ksDir);
+% [cIDs, cluster_labels] = getPhyClusterLabels(ksDir);
 
 % Load these from waveformStruct.mat!
 waveform_file = fullfile(ksDir, 'waveformStruct.mat');

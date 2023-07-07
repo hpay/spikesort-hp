@@ -15,7 +15,7 @@ save_dir = fullfile(fileparts(raw_dir),'kilosort2_output');
 mkdir(save_dir)
 fprintf('\n Running Kilosort on directory %s \n', raw_dir)
 t = tic;
-run_single_kilosort(raw_dir,save_dir,ops)
+runSingleKilosort(raw_dir,save_dir,ops)
 toc(t)
 
 % Save waveforms for celltype clustering

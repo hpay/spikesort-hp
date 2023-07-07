@@ -14,7 +14,7 @@ fs = h.sample_rate;
 fDat = fullfile(dataDir,'amplifier.dat');
 spkSamp = readNPY(fullfile(ksDir, 'spike_times.npy'));
 sID = readNPY(fullfile(ksDir,'spike_clusters.npy'));
-[unit_ID,cluster_labels] = get_phy_cluster_labels(ksDir);
+[unit_ID,cluster_labels] = getPhyClusterLabels(ksDir);
 if only_good
     ind = strcmp(cluster_labels,'good');
 else

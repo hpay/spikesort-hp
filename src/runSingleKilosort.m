@@ -1,5 +1,5 @@
 %% Function to do sorting that takes in root data directory and options
-function rez = run_single_kilosort(rootDir, saveDir, ops)
+function rez = runSingleKilosort(rootDir, saveDir, ops)
 
 % find the binary file
 fprintf('Looking for data inside %s \n', rootDir)

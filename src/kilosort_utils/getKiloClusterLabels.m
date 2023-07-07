@@ -1,4 +1,4 @@
-function [unit_ID,cluster_labels] = get_kilo_cluster_labels(ksDir)
+function [unit_ID,cluster_labels] = getKiloClusterLabels(ksDir)
 % equivalent to reading cluster_group.tsv from kilosort to get ORIGINAL cluster labels
 
 fid = fopen(fullfile(ksDir,'cluster_KSlabel.tsv'));

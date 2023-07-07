@@ -20,6 +20,8 @@ overwrite = 0;
 data_dir_local = 'D:\data';  % faster to process on locally saved files
 data_dir_remote = 'Z:\Hannah\Ephys\Project2'; % Location to backup to
 
+%% Set up 
+
 % Only process data that is actually present!
 fnames = dir(data_dir_local);
 fnames = {fnames.name};
@@ -90,7 +92,7 @@ for ii = 1:height(T)
     
     % Run and save results. Note: ops saved in rez.mat
     fprintf('\n Running Kilosort on directory %s \n', raw_dir),
-    run_single_kilosort(raw_dir, ks_dir, ops);       
+    runSingleKilosort(raw_dir, ks_dir, ops);       
     
     % Copy kilosort output to the server
     root_dir_remote = fullfile(data_dir_remote, T.filename{ii});
@@ -131,7 +133,7 @@ for ii = 1:height(T)
         wvStruct = getfield(load(fullfile(ks_dir, 'waveformStruct.mat')),'wvStruct');
 
         % Get the latest phy labels
-        [unit_ID,cluster_labels] = get_phy_cluster_labels(ks_dir);
+        [unit_ID,cluster_labels] = getPhyClusterLabels(ks_dir);
                 
         % Check if everything is already identical
         if length(unit_ID)==length(wvStruct.goodIDs) && all(unit_ID(:)==wvStruct.goodIDs(:)) && all(strcmp(wvStruct.goodLabels,cluster_labels))
@@ -156,6 +158,7 @@ for ii = 1:height(T)
 end
 
 %% Generate GMM based on all curated sessions - rerun after sorting new sessions
+
 % %{
 T_load = T(strcmp(T.manually_sorted,'yes'),:);
 option_only_good = 1;
