@@ -110,7 +110,10 @@ for ii = 1:height(T)
 end
 
 %% Go manually label results in Phy! 
-
+% In Anaconda prompt:
+%   conda activate phy_env
+% Navigate to folder with kilosort results (Type Z: to change to engram drive. then cd path. )
+%   phy template-gui params.py
 
 
 %% Get waveforms for all sessions in table T
