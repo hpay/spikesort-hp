@@ -15,7 +15,7 @@ fDat = fullfile(dataDir,'amplifier.dat');
 spkSamp = readNPY(fullfile(ksDir, 'spike_times.npy'));
 sID = readNPY(fullfile(ksDir,'spike_clusters.npy'));
 [unit_ID,cluster_labels] = getPhyClusterLabels(ksDir);
-if only_good
+if exist('only_good','var') && only_good
     ind = strcmp(cluster_labels,'good');
 else
     ind = true(size(cluster_labels));

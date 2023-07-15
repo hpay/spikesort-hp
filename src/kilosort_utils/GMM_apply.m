@@ -1,5 +1,7 @@
-function [idx,labels] = GMM_apply(gm, all_dir, option_only_good, plot_on)
+function [idx, labels, stats] = GMM_apply(gm, all_dir, option_only_good, plot_on)
 %%
+
+if ~exist('option_only_good','var'); option_only_good = []; end
 id = 'stats:gmdistribution:cluster:MissingData'; warning('off',id)
 n_clusters = gm.NumComponents;
 [stats, goodIDs, mxWF, tWF] = GMM_stats(all_dir, option_only_good); 
@@ -64,7 +66,7 @@ fprintf('E %i, I %i, intermediate %i, moderate_outlier %i, extreme_outlier %i, u
 % disp(mean(stats{idx==1,:}))
 % disp(mean(stats{idx==2,:}))
 
-if plot_on
+if exist('plot_on','var') && plot_on
     %% Plot results
     fs = 1/mean(diff(tWF));
     figure; 

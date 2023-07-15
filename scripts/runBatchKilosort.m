@@ -7,7 +7,7 @@
 % Necessary column names in spreadsheet:
 %   filename: name of the session directory
 %   bad_chan: list any bad channels in this format: [1, 6, 10]. If none: []
-%   probe_chanmap: name of probe {H5, H6}
+%   probe: name of probe channel map {H5, H6}
 %   manually_sorted: 1 if manually curated in phy, 0 otherwise
 
 T = readtable('C:\Users\Hannah\Dropbox\alab\Code\project2\data\RECORDING_DEPTH_CHICK.xlsx');
@@ -90,7 +90,7 @@ for ii = 1:height(T)
     % set up options
     ops = [];
     ops.badChannels = eval(T.bad_chan{ii});
-    ops.chanMap = [T.probe_chanmap{ii} '.mat']; % Make sure config folder is on the search path
+    ops.chanMap = [T.probe{ii} '.mat']; % Make sure config folder is on the search path
     ops = hp_config(ops);
     
     % Run and save results. Note: ops saved in rez.mat
@@ -181,93 +181,22 @@ for ii = 1:height(T)
         disp(T.filename{ii})
         [idx,labels] = GMM_apply(gm, fullfile(data_dir_local, T.filename{ii}), option_only_good, plot_on);
         save(fullfile(ks_dir,'gmm_result.mat'),'idx','labels')
+        
+        wvStruct = getfield(load(fullfile(ks_dir, 'waveformStruct.mat')), 'wvStruct');
+        wvStruct.typeLabels = labels;
+        save(fullfile(ks_dir, 'waveformStruct.mat'),'wvStruct')
     end
 end
 
 %% Apply basic sorting quality metrics to uncurated sessions
 % Make sure to record if manually sorted in the excel table!!!
-
-max_contam_good = 0.10;
-max_contam_mua = 1;
-min_spikes_good = 50; % Label units with less than N spikes as mua
-min_spikes_mua = 20;  % Label units with less than N spikes as noise
-
 for ii = 1:height(T)
-    % Find the KS directory
     ks_dir = ksDirFun(fullfile(data_dir_local, T.filename{ii}));
-    disp(T.filename{ii})
-    
-    % Get the contam percents calculated in getSessionWaveforms
-    wvStruct = getfield(load(fullfile(ks_dir, 'waveformStruct.mat')), 'wvStruct');
-    gm_result = load(fullfile(ks_dir,'gmm_result.mat'));
-    wvStruct.typeLabels = gm_result.labels;
-    save(fullfile(ks_dir, 'waveformStruct.mat'),'wvStruct')
-    
     if strcmp(T.manually_sorted{ii},'yes'); disp('Skipping, manually sorted');
         continue;
     end
-    
-    % Delete old phy log files -- will interfere with update of these labels
-    if exist(fullfile(ks_dir,'phy.log'),'file')
-        warning('Deleting phy logs? Enter any key to continue')
-        keyboard
-        rmdir(fullfile(ks_dir,'.phy'),'s')
-        delete(fullfile(ks_dir,'phy.log'))
-    end
-    
-    % Copy original files
-    if ~exist(fullfile(ks_dir, 'cluster_ContamPct_orig.tsv'),'file')
-        copyfile(fullfile(ks_dir, 'cluster_ContamPct.tsv'), fullfile(ks_dir, 'cluster_ContamPct_orig.tsv'))
-        copyfile(fullfile(ks_dir, 'cluster_KSLabel.tsv'), fullfile(ks_dir, 'cluster_KSLabel_orig.tsv'))
-    end
-    
-    % Read the old cluster IDs and labels
-    T_cluster_ContamPct_old = readtable(fullfile(ks_dir, 'cluster_ContamPct_orig.tsv'),'FileType','Text');
-    cluster_id = T_cluster_ContamPct_old.cluster_id;
-    T_cluster_KSLabel_old = readtable(fullfile(ks_dir, 'cluster_KSLabel_orig.tsv'),'FileType','Text');
-    
-    % Label units according to contamination
-    mask_noise = wvStruct.contam>max_contam_mua | wvStruct.nSpikes<min_spikes_mua;
-    mask_good = ~mask_noise & (wvStruct.contam<max_contam_good & ~isnan(wvStruct.contam) & wvStruct.nSpikes>min_spikes_good);
-    
-    % Label units according to GMM
-    mask_good = mask_good & ismember(gm_result.labels,{'E','I'});
-    mask_noise = mask_noise | ismember(gm_result.labels,{'extreme_outlier','unknown'});
-    mask_mua = ~mask_noise & ~mask_good;
-    if nnz(mask_mua)+nnz(mask_good)+nnz(mask_noise) ~= length(mask_noise); error('check masks'); end
-    
-    % TODO: Label units according to firing rate stability
-    
-    %{
-    figure;  % PLOT results
-    subplot(2,2,1); plot(wvStruct.mxWF(mask_good&strcmp(gm_result.labels,'E'),:)','r');  title({T.filename{ii}, 'E'},'Interp','none'); grid on
-    subplot(2,2,2); plot(wvStruct.mxWF(mask_good&strcmp(gm_result.labels,'I'),:)','b');  title('I'); grid on
-    subplot(2,2,3); plot(wvStruct.mxWF(mask_mua,:)','k');  title('MUA'); grid on
-    subplot(2,2,4); plot(wvStruct.mxWF(mask_noise,:)','Color',.3*[1 1 1]); title('Noise'); grid on
-    linkaxes; ylim([-1.2 .6]*1e3);
-    %}
-    
-    % Save new "good", "mua", "noise" labels
-    KSLabel = cell(length(cluster_id),1);
-    KSLabel(mask_good) = deal({'good'});
-    KSLabel(mask_mua) = deal({'mua'});
-    KSLabel(mask_noise) = deal({'noise'});
-    fprintf('%s: ngood new %i, ngood orig %i\n', T.filename{ii}, nnz(mask_good), nnz(strcmp(T_cluster_KSLabel_old.KSLabel,'good')))
-    T_cluster_KSLabel_new = table(cluster_id, KSLabel);
-    writetable(T_cluster_KSLabel_new, fullfile(ks_dir, 'cluster_KSLabel.tsv'),'FileType','Text','Delimiter','tab','WriteVariableNames',true);
-    writetable(T_cluster_KSLabel_new, fullfile(ks_dir, 'cluster_group.tsv'),'FileType','Text','Delimiter','tab','WriteVariableNames',true);
-    
-    % Update cluster_ContamPct.tsv so Phy sees the same numbers
-    ContamPct = round(wvStruct.contam*100 *10)/10;
-    T_cluster_ContamPct_new = table(cluster_id,ContamPct);
-    writetable(T_cluster_ContamPct_new, fullfile(ks_dir, 'cluster_ContamPct.tsv'),'FileType','Text','Delimiter','tab','WriteVariableNames',true); % TODO change from temp
-    
-    % Update wvStruct
-    wvStruct.goodLabels = KSLabel;
-    wvStruct.goodIDs = wvStruct.goodIDs(:);
-    save(fullfile(ks_dir, 'waveformStruct.mat'),'wvStruct')
+    applyQualityMetrics(ks_dir);
 end
-
 
 %% Backup kilosort results
 exceptions = {'params.py','phy.log','.phy'};
