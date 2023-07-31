@@ -44,8 +44,8 @@ min_spikes_mua = 20;  % Label units with less than N spikes as noise
     mask_artifact = max_range(:)<max_range_threshold;
     
     % Label units according to GMM
-    mask_good = mask_good & ismember(gm_result.labels,{'E','I'}) & ~mask_artifact;
-    mask_noise = mask_noise | ismember(gm_result.labels,{'extreme_outlier','unknown'}) | mask_artifact;
+    mask_good = mask_good & ismember(gm_result.labels,{'E','I','intermediate','moderate_outlier','unknown'}) & ~mask_artifact;
+    mask_noise = mask_noise | ismember(gm_result.labels,{'extreme_outlier'}) | mask_artifact;
     mask_mua = ~mask_noise & ~mask_good;
     if nnz(mask_mua)+nnz(mask_good)+nnz(mask_noise) ~= length(mask_noise); error('check masks'); end
     
