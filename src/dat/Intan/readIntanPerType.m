@@ -68,8 +68,8 @@ if ~option_digital_only
     
 end
 
-% TODO: if nargout<3, skip this 
-if ndig_in
+% If nargout<3, skip loading digital inputs
+if ndig_in && nargout>=3
     % Open the digital data
     dig_filepath = fullfile(filepath,'digitalin.dat');
     fid = fopen(dig_filepath, 'r');

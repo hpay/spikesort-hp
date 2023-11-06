@@ -11,7 +11,7 @@ cs = turbo(length(birds));
 
 
 %% Plot the number of "good" cells (manual and KS labelled) v. days since implant
-disp(T(:,{'filename','depth','manually_sorted','probe_chanmap','bad_chan','notes'}))
+disp(T(:,{'filename','depth','manually_sorted','probe','bad_chan','notes'}))
 disp('Counting total cells')
 ngood_final= [];
 ngood_orig = [];

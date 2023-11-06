@@ -50,7 +50,7 @@ addpath(results_dir);
 
 %% Backup from local SSD to server
 exceptions = {'kilosort2_output'}; % Back this up specifically later
-runmode = 0;
+runmode = 2; % Don't delete anything!
 for ii = 1:height(T)
     fprintf('\n%s\n',T.filename{ii})
     root_dir_local = fullfile(data_dir_local, T.filename{ii});  % e.g. D:\data\HC11_230129
@@ -66,6 +66,7 @@ for ii = 1:height(T)
     
     % Find the binary directory
     raw_dir_temp = dir(fullfile(root_dir_local, 'raw*'));
+    if isempty(raw_dir_temp); continue; end
     raw_dir = fullfile(raw_dir_temp.folder, raw_dir_temp.name);
     
     % Create save directory
@@ -128,9 +129,10 @@ for ii = 1:height(T)
     % Find the binary directory
     root_dir = fullfile(data_dir_local, T.filename{ii});
     raw_dir_temp = dir(fullfile(root_dir, 'raw*'));
+    if isempty(raw_dir_temp); continue; end
     raw_dir = fullfile(raw_dir_temp.folder, raw_dir_temp.name);
     ks_dir = ksDirFun(root_dir);
-    
+
     % Check if already done with the latest sorting unit labels
     if exist(fullfile(ks_dir, 'waveformStruct.mat'),'file')
         wvStruct = getfield(load(fullfile(ks_dir, 'waveformStruct.mat')),'wvStruct');
@@ -175,8 +177,10 @@ end
 gm = getfield(load(fullfile(results_dir, gmm_name)),'gm');
 option_only_good = 0;
 plot_on = 0;
-for ii = 1:height(T)
+for ii = height(T):-1:1
     ks_dir = ksDirFun(fullfile(data_dir_local, T.filename{ii}));
+    if ~exist(ks_dir,'dir'); continue; end
+
     if ~exist(fullfile(ks_dir,'gmm_result.mat'),'file') || overwrite_gmm
         disp(T.filename{ii})
         [idx,labels] = GMM_apply(gm, fullfile(data_dir_local, T.filename{ii}), option_only_good, plot_on);
@@ -190,8 +194,10 @@ end
 
 %% Apply basic sorting quality metrics to uncurated sessions
 % Make sure to record if manually sorted in the excel table!!!
-for ii = 1:height(T)
+for ii = height(T):-1:1
     ks_dir = ksDirFun(fullfile(data_dir_local, T.filename{ii}));
+    if ~exist(ks_dir,'dir'); continue; end
+
     if strcmp(T.manually_sorted{ii},'yes'); disp('Skipping, manually sorted');
         continue;
     end
@@ -200,7 +206,7 @@ end
 
 %% Backup kilosort results
 exceptions = {'params.py','phy.log','.phy'};
-runmode = 0;
+runmode = 2;
 for ii = 1:height(T)
     fprintf('\n%s\n',T.filename{ii})
     s1 = ksDirFun(fullfile(data_dir_local, T.filename{ii}));
@@ -209,4 +215,4 @@ for ii = 1:height(T)
 end
 
 %% Optional plotting of # of cells and E/I ratio
-plotBasicResults(T, data_dir_local, ksDirFun)
+plotBasicResults(T, data_dir_remote, ksDirFun)

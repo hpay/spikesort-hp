@@ -20,6 +20,7 @@ function dirbackup(s1, s2, runmode, exceptions)
 %   1:      Safe mode. Questions most actions (significant user input
 %           required to do a backup), except for copying (without
 %           overwriting) files/directories to the backup directory.
+%   2:      Like 0, but never delete a file that is in b but not a and don't ask
 %
 % Example:
 %
@@ -202,13 +203,15 @@ end
 function loc_deletefile(target, runmode)
 % Default choice is to continue the backup ...
 R = 'y';
-if (runmode >= 0) % Edited to avoid accidentally deleting files! HP 6/9/23
+if runmode==2
+    R = 'n'; % never delete
+elseif runmode >= 0 % Edited to avoid accidentally deleting files! HP 6/9/23
    fprintf('\nThe file ''%s'' is no longer in the source directory. \n', target);
    R = input('Delete? (y/n/q) ', 's');
 end
 % Go through potential user options and retrieve answer ...
 ok = getanswer(R);
-fprintf('\n''%s'' ... ', target);
+fprintf('''%s'' ... ', target);
 if ok
    if (runmode >= 0)
       [status, out] = system(sprintf('del /AH /AR /AS /AA "%s"', target));
@@ -216,7 +219,7 @@ if ok
       status = 0;
    end
    if status
-      fprintf('An unforeseen error occurred during the backup process.\nThe file ''%s'' could not be deleted.\nSystem message: %s', target, out);
+      fprintf('An unforeseen error occurred during the backup process.\nThe file ''%s'' could not be deleted.\nSystem message: %s\n', target, out);
    else
       fprintf('[DELETED]\n');
    end
@@ -228,21 +231,23 @@ end
 function loc_deletedir(target, runmode)
 % Default choice is to continue the backup ...
 R = 'y';
-if (runmode == 1)
+if runmode==2
+    R = 'n'; % never delete
+elseif runmode >=0
    fprintf('\nThe directory ''%s'' is no longer in the source directory. \n', target);
    R = input('Delete? (y/n/q) ', 's');
 end
 % Go through potential user options and retrieve answer ...
 ok = getanswer(R);
-fprintf('\n''%s'' ... ', target);
+fprintf('''%s'' ... ', target);
 if ok
-   if (runmode >= 0)
+   if runmode >= 0
       [status, out] = system(sprintf('rmdir "%s" /S /Q', target));
    else
       status = 0;
    end
    if status
-      fprintf('An unforeseen error occurred during the backup process.\nThe directory ''%s'' could not be deleted.\nSystem message: %s', target, out);
+      fprintf('An unforeseen error occurred during the backup process.\nThe directory ''%s'' could not be deleted.\nSystem message: %s\n', target, out);
    else
       fprintf('[DELETED]\n');
    end
