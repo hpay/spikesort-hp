@@ -9,9 +9,11 @@
 %   bad_chan: list any bad channels in this format: [1, 6, 10]. If none: []
 %   probe: name of probe channel map {H5, H6}
 %   manually_sorted: 1 if manually curated in phy, 0 otherwise
+% 
+% Currently set up to analyze data on local hard drive
 
-T = readtable('C:\Users\Hannah\Dropbox\alab\Code\project2\data\RECORDING_DEPTH_CHICK.xlsx');
-T = T(T.include>0,:);
+Tall = readtable('C:\Users\Hannah\Dropbox\alab\Code\project2\data\RECORDING_DEPTH_CHICK.xlsx');
+Tall = Tall(Tall.include>0,:);
 
 % Re-spike sort and overwrite kilosort output?
 overwrite_ks = 0;
@@ -28,7 +30,7 @@ data_dir_remote = 'Z:\Hannah\Ephys\Project2'; % Location to backup to
 % Only process data that is actually present!
 fnames = dir(data_dir_local);
 fnames = {fnames.name};
-T = T(ismember(T.filename, fnames),:);
+Tlocal = Tall(ismember(Tall.filename, fnames),:);
 
 % Save directory function -- ks results for each session saved here
 ksDirFun = @(root_dir) fullfile(root_dir,'kilosort2_output');
@@ -51,18 +53,18 @@ addpath(results_dir);
 %% Backup from local SSD to server
 exceptions = {'kilosort2_output'}; % Back this up specifically later
 runmode = 2; % Don't delete anything!
-for ii = 1:height(T)
-    fprintf('\n%s\n',T.filename{ii})
-    root_dir_local = fullfile(data_dir_local, T.filename{ii});  % e.g. D:\data\HC11_230129
-    root_dir_remote = fullfile(data_dir_remote, T.filename{ii}); % e.g. Z:\Hannah\ephys\HC11_230129
+for ii = 1:height(Tlocal)
+    fprintf('\n%s\n',Tlocal.filename{ii})
+    root_dir_local = fullfile(data_dir_local, Tlocal.filename{ii});  % e.g. D:\data\HC11_230129
+    root_dir_remote = fullfile(data_dir_remote, Tlocal.filename{ii}); % e.g. Z:\Hannah\ephys\HC11_230129
     if ~exist(root_dir_local,'dir') || strcmp(root_dir_local, root_dir_remote); continue; end
     dirbackup(root_dir_local, root_dir_remote, runmode, exceptions)
 end
 
 %% Run Kilosort2
-for ii = 1:height(T)
+for ii = 1:height(Tlocal)
     % Root dir on server (Z:\Hannah\ephys\HC11_230129 etc)
-    root_dir_local = fullfile(data_dir_local, T.filename{ii});
+    root_dir_local = fullfile(data_dir_local, Tlocal.filename{ii});
     
     % Find the binary directory
     raw_dir_temp = dir(fullfile(root_dir_local, 'raw*'));
@@ -75,23 +77,23 @@ for ii = 1:height(T)
     % If it exists already, either overwrite or skip
     if ~isempty(dir(fullfile(ks_dir,'*.npy')))
         if overwrite_ks
-            fprintf('Overwriting %s\n', T.filename{ii})
+            fprintf('Overwriting %s\n', Tlocal.filename{ii})
             try
                 rmdir(ks_dir,'s')
             catch
             end
         else
-            fprintf('Already sorted %s\n', T.filename{ii})
+            fprintf('Already sorted %s\n', Tlocal.filename{ii})
             continue;
         end
     end
     mkdir(ks_dir)
-    disp(T(ii,:))
+    disp(Tlocal(ii,:))
     
     % set up options
     ops = [];
-    ops.badChannels = eval(T.bad_chan{ii});
-    ops.chanMap = [T.probe{ii} '.mat']; % Make sure config folder is on the search path
+    ops.badChannels = eval(Tlocal.bad_chan{ii});
+    ops.chanMap = [Tlocal.probe{ii} '.mat']; % Make sure config folder is on the search path
     ops = hp_config(ops);
     
     % Run and save results. Note: ops saved in rez.mat
@@ -99,7 +101,7 @@ for ii = 1:height(T)
     runSingleKilosort(raw_dir, ks_dir, ops);
     
     % Copy kilosort output to the server
-    root_dir_remote = fullfile(data_dir_remote, T.filename{ii});
+    root_dir_remote = fullfile(data_dir_remote, Tlocal.filename{ii});
     ks_dir_remote = ksDirFun(root_dir_remote);
     copyfile(ks_dir, ks_dir_remote)
     
@@ -122,97 +124,25 @@ end
 %   phy template-gui params.py
 
 
-%% Get waveforms for all sessions in table T
-only_good = 0; % Process all for now, select good later
-for ii = 1:height(T)
-    
-    % Find the binary directory
-    root_dir = fullfile(data_dir_local, T.filename{ii});
-    raw_dir_temp = dir(fullfile(root_dir, 'raw*'));
-    if isempty(raw_dir_temp); continue; end
-    raw_dir = fullfile(raw_dir_temp.folder, raw_dir_temp.name);
-    ks_dir = ksDirFun(root_dir);
+%% Analyze waveforms on local server
+% analyzeBatchKilosort(Tlocal, data_dir_remote, ksDirFun, results_dir, overwrite_gmm)
+analyzeBatchKilosort(Tlocal, data_dir_local, ksDirFun, results_dir, overwrite_gmm)
 
-    % Check if already done with the latest sorting unit labels
-    if exist(fullfile(ks_dir, 'waveformStruct.mat'),'file')
-        wvStruct = getfield(load(fullfile(ks_dir, 'waveformStruct.mat')),'wvStruct');
-        
-        % Get the latest phy labels
-        [unit_ID,cluster_labels] = getPhyClusterLabels(ks_dir);
-        
-        % Check if everything is already identical
-        if length(unit_ID)==length(wvStruct.goodIDs) && all(unit_ID(:)==wvStruct.goodIDs(:)) && all(strcmp(wvStruct.goodLabels,cluster_labels))
-            continue;
-            
-            % Check if units are identical, but labels (good/mua/noise) need to be updated
-        elseif length(unit_ID)==length(wvStruct.goodIDs) && all(unit_ID(:)==wvStruct.goodIDs(:)) && ~all(strcmp(wvStruct.goodLabels,cluster_labels))
-            % Re-save in case any updates to KS labels
-            wvStruct.goodLabels = cluster_labels;
-            save(fullfile(ks_dir,'waveformStruct.mat'),'wvStruct')
-            continue;
-        end
-        
-    end
-    
-    % Save waveforms for cell type clustering
-    disp(T(ii,:))
-    wvStruct = getSessionWaveforms(raw_dir, ks_dir, only_good);
-    save(fullfile(ks_dir, 'waveformStruct.mat'), 'wvStruct','-v7.3')
-    save(fullfile(ksDirFun(fullfile(data_dir_remote, T.filename{ii})), 'waveformStruct.mat'), 'wvStruct','-v7.3')
-    
-end
-
-%% Generate GMM based on all curated sessions - rerun after sorting new sessions
-gmm_name = 'latestGMM.mat';
-if ~exist(fullfile(results_dir, gmm_name),'file') || overwrite_gmm
-    T_load = T(strcmp(T.manually_sorted,'yes'),:);
-    option_only_good = 1;
-    n_clusters = 2;
-    gm = GMM_make(cellfun(@(x) fullfile(data_dir_local, x), T_load.filename,'Uni',0), option_only_good, n_clusters);
-    save(fullfile(results_dir, gmm_name),'gm','T')
-end
-
-
-%% Apply GMM results to all sessions
-gm = getfield(load(fullfile(results_dir, gmm_name)),'gm');
-option_only_good = 0;
-plot_on = 0;
-for ii = height(T):-1:1
-    ks_dir = ksDirFun(fullfile(data_dir_local, T.filename{ii}));
-    if ~exist(ks_dir,'dir'); continue; end
-
-    if ~exist(fullfile(ks_dir,'gmm_result.mat'),'file') || overwrite_gmm
-        disp(T.filename{ii})
-        [idx,labels] = GMM_apply(gm, fullfile(data_dir_local, T.filename{ii}), option_only_good, plot_on);
-        save(fullfile(ks_dir,'gmm_result.mat'),'idx','labels')
-        
-        wvStruct = getfield(load(fullfile(ks_dir, 'waveformStruct.mat')), 'wvStruct');
-        wvStruct.typeLabels = labels;
-        save(fullfile(ks_dir, 'waveformStruct.mat'),'wvStruct')
-    end
-end
-
-%% Apply basic sorting quality metrics to uncurated sessions
-% Make sure to record if manually sorted in the excel table!!!
-for ii = height(T):-1:1
-    ks_dir = ksDirFun(fullfile(data_dir_local, T.filename{ii}));
-    if ~exist(ks_dir,'dir'); continue; end
-
-    if strcmp(T.manually_sorted{ii},'yes'); disp('Skipping, manually sorted');
-        continue;
-    end
-    applyQualityMetrics(ks_dir);
-end
-
-%% Backup kilosort results
+% Backup results
 exceptions = {'params.py','phy.log','.phy'};
 runmode = 2;
-for ii = 1:height(T)
-    fprintf('\n%s\n',T.filename{ii})
-    s1 = ksDirFun(fullfile(data_dir_local, T.filename{ii}));
-    s2 = ksDirFun(fullfile(data_dir_remote, T.filename{ii}));
+for ii = 1:height(Tlocal)
+    fprintf('\n%s\n',Tlocal.filename{ii})
+    s1 = ksDirFun(fullfile(data_dir_local, Tlocal.filename{ii}));
+    s2 = ksDirFun(fullfile(data_dir_remote, Tlocal.filename{ii}));
     dirbackup(s1, s2, runmode, exceptions)
 end
 
+%% Analyze waveforms on remote server
+% analyzeBatchKilosort(Tall, data_dir_remote, ksDirFun, results_dir)
+
+
+
+
 %% Optional plotting of # of cells and E/I ratio
-plotBasicResults(T, data_dir_remote, ksDirFun)
+plotBasicResults(Tlocal, data_dir_remote, ksDirFun)

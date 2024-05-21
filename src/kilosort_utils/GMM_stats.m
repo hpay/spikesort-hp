@@ -11,40 +11,32 @@ if istable(all_dir)
 else
     
     if ~iscell(all_dir); all_dir = {all_dir}; end
+    
+    meanRate = [];
+    mxWF = []; % cat(1,theseWaveforms.mxWF);
+    goodIDs = []; %cat(1,theseWaveforms.goodIDs);
+    
     for ii = 1:length(all_dir)
         ks_dir = fullfile(all_dir{ii},'kilosort2_output');
         wvStruct = getfield(load(fullfile(ks_dir,'waveformStruct.mat')),'wvStruct');
-        wvStruct.goodIDs = wvStruct.goodIDs(:);
-        wvStruct.goodLabels = wvStruct.goodLabels(:);
-
+        
         % Only keep "good" clusters. If sorted with Phy, this will be the final sorting
         if ~isempty(option_only_good) && option_only_good
             mask = strcmp(wvStruct.goodLabels,'good');
-            wvStruct.mxWF = wvStruct.mxWF(mask,:);
-            wvStruct.max_site = wvStruct.max_site(mask,:);
-            wvStruct.pcWF = wvStruct.pcWF(mask,:);
-            wvStruct.meanRate = wvStruct.meanRate(mask,:);
-            wvStruct.waveFormsMean = wvStruct.waveFormsMean(:,:,mask);
-            wvStruct.goodIDs = wvStruct.goodIDs(mask);
-            wvStruct.goodLabels = wvStruct.goodLabels(mask);
-            wvStruct.medISI = wvStruct.medISI(mask);
-            wvStruct.contam = wvStruct.contam(mask);
-            wvStruct.nSpikes = wvStruct.nSpikes(mask);
+        else
+            mask = true(size(wvStruct.max_site));
         end
-%         figure; plot(wvStruct.mxWF','k'); title(all_dir{ii},'Interp','none')
-%         [a,b]=min(wvStruct.mxWF(:,1:50)');
-%         [~,c] = max(b)
         
-        theseWaveforms(ii) = wvStruct;
+        meanRate = cat(1, meanRate, wvStruct.meanRate(mask,:));
+        mxWF = cat(1,mxWF, wvStruct.mxWF(mask,:));
+        goodIDs = cat(1,goodIDs, wvStruct.goodIDs(mask(:)));
+        
     end
+    
     fs = size(wvStruct.mxWF,2)/wvStruct.spkDur;
     
-    tWF = linspace(-theseWaveforms(1).spkOffset,-theseWaveforms(1).spkOffset+theseWaveforms(1).spkDur,...
-        fs*theseWaveforms(1).spkDur);
-    
-    meanRate = cat(1,theseWaveforms.meanRate);
-    mxWF = cat(1,theseWaveforms.mxWF);
-    goodIDs = cat(1,theseWaveforms.goodIDs);
+    tWF = linspace(-wvStruct(1).spkOffset,-wvStruct(1).spkOffset+wvStruct(1).spkDur,...
+        fs*wvStruct(1).spkDur);
     
 end
 

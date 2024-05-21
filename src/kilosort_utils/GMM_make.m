@@ -1,5 +1,9 @@
 % LOAD IN SORTED EPHYS DIRECTORIES FROM BIRD MASTER FOLDER
 function [gm, idx,labels] = GMM_make(all_dir, option_only_good, n_clusters)
+% idx:
+%   1 = ind_exc
+%   2 = ind_inh
+%   3 = ind_noise
 % See this link on outputs: https://www.mathworks.com/help/stats/gmdistribution.cluster.html
 
 %% Get waveforms from each session
