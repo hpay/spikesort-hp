@@ -12,7 +12,7 @@
 % 
 % Currently set up to analyze data on local hard drive
 
-Tall = readtable('C:\Users\Hannah\Dropbox\alab\Code\project2\data\RECORDING_DEPTH_CHICK.xlsx');
+Tall = readtable('C:\Users\Hannah\Dropbox\alab\Code\project2\data\RECORDING_EPHYS.xlsx');
 Tall = Tall(Tall.include>0,:);
 
 % Re-spike sort and overwrite kilosort output?

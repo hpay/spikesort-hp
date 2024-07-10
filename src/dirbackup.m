@@ -20,117 +20,142 @@ function dirbackup(s1, s2, runmode, exceptions)
 %   1:      Safe mode. Questions most actions (significant user input
 %           required to do a backup), except for copying (without
 %           overwriting) files/directories to the backup directory.
-%   2:      Like 0, but never delete a file that is in b but not a and don't ask
+%   2:      Like 0, but never delete a file that is in 'b' but not 'a'.
+%           Never overwrite a newer file in 'b' with an older version in 'a'
+%
 %
 % Example:
 %
 % dirbackup('C:\Mywork', 'D:\Backup\Mywork', 0)
 %
 % By Philip Jonkergouw https://www.mathworks.com/matlabcentral/fileexchange/19911-directory-backup
+%
+% Edited by Hannah Payne
+
 if (nargin < 3)
-   runmode = 0;
+    runmode = 0;
 end
 
 % Make new folder in backup directory if needed
-if ~exist(s2, 'dir'); mkdir(s2); end 
+if ~exist(s2, 'dir'); mkdir(s2); end
 
 tmp = what(s1);
 s1 = tmp.path;
-tmp = what(s2); 
+tmp = what(s2);
 s2 = tmp.path;
 
 % Remove the '.' and '..' from the file structure arrays
 file1 = dir(s1);
 nfiles1 = length(file1);
-for i = nfiles1:-1:1
-   if (isequal(file1(i).name , '.') || isequal(file1(i).name , '..'))
-      file1(i) = [];
-   end
-   if exist('exceptions','var') && ismember(file1(i).name, exceptions)
-       file1(i) = [];
-   end
+for ii = nfiles1:-1:1
+    if (isequal(file1(ii).name , '.') || isequal(file1(ii).name , '..'))
+        file1(ii) = []; continue;
+    end
+    %     if exist('exceptions','var') && ismember(file1(i).name, exceptions)
+    if exist('exceptions','var')
+        is_exception = false;
+        for jj = 1:length(exceptions)
+            if ~isempty(regexp(file1(ii).name, exceptions{jj}, 'once'))
+                is_exception = true;
+            end
+        end
+        if is_exception
+            file1(ii) = []; continue;
+        end
+    end
 end
 file2 = dir(s2);
 nfiles2 = length(file2);
-for i = nfiles2:-1:1
-    if (isequal(file2(i).name , '.') || isequal(file2(i).name , '..'))
-        file2(i) = []; continue;
+for ii = nfiles2:-1:1
+    if (isequal(file2(ii).name , '.') || isequal(file2(ii).name , '..'))
+        file2(ii) = []; continue;
     end
-    if exist('exceptions','var') && ismember(file2(i).name, exceptions)
-        file2(i) = []; continue;
+    if exist('exceptions','var') && ismember(file2(ii).name, exceptions)
+        file2(ii) = []; continue;
+    end
+    if exist('exceptions','var')
+        is_exception = false;
+        for jj = 1:length(exceptions)
+            if ~isempty(regexp(file2(ii).name, exceptions{jj}, 'once'))
+                is_exception = true;
+            end
+        end
+        if is_exception
+            file2(ii) = []; continue;
+        end
     end
 end
 
 % Sort file names in current directory (ignoring case) ...
 nfiles1 = length(file1);
-[x, i] = sort(lower({file1(:).name}));
-file1 = file1(i);
+[x, ii] = sort(lower({file1(:).name}));
+file1 = file1(ii);
 nfiles2 = length(file2);
-[x, i] = sort(lower({file2(:).name}));
-file2 = file2(i);
+[x, ii] = sort(lower({file2(:).name}));
+file2 = file2(ii);
 
 % Loop through the files, comparing the 'Date modified' values ...
 n1 = 1; n2 = 1;
 while (n1 <= nfiles1 && n2 <= nfiles2)
-   if strcmpi(file1(n1).name, file2(n2).name)
-      % Current files have same name (ignoring case) ...
-      if (file1(n1).isdir + file2(n2).isdir == 2)
-         % Both files are directories. Call this function (recursive) ...
-         dirbackup([s1, '\', file1(n1).name], [s2, '\', file2(n2).name], runmode);
-      elseif (file2(n2).isdir + file1(n1).isdir == 1)
-         % One file is a directory, while the other is not ...
-         error('Target directories contain a file ''%s'' and directory ''%s''', file1(n1).name, file2(n2).name);
-      elseif (file1(n1).isdir + file2(n2).isdir == 0)
-         % Both are non-directory files ...
-         if ~strcmp(file1(n1).date, file2(n2).date)
-            % The dates are different and one of the files should be updated ...
-            loc_update(s1, file1(n1), s2, file2(n2), runmode);
-         end;
-      end;
-      % Continue to next files in s1 and s2 ...
-      n1 = n1 + 1;
-      n2 = n2 + 1;
-   else
-      % Current files in s1 and s2 are different. Sort the files by
-      % name, ignoring case ...
-      [xx, pos] = sort(lower({file1(n1).name, file2(n2).name}));
-      if (pos(1) == 1)
-         % The file in s1 is higher up the alphabetic rank. Copy
-         % file from s1 to s2 ...
-         loc_copy(s1, file1(n1), s2, file1(n1), runmode);
-         % Continue to next file in s1 ...
-         n1 = n1 + 1;
-      else
-         % The file in s2 is higher up the alphabetic rank ...
-         % Directory s1 is the source, delete file or directory in s2 ....
-         if file2(n2).isdir
-            loc_deletedir([s2, '\', file2(n2).name], runmode);
-         else
-            loc_deletefile([s2, '\', file2(n2).name], runmode);
-         end
-         % Continue to next file in s2 ...
-         n2 = n2 + 1;
-      end
-   end
+    if strcmpi(file1(n1).name, file2(n2).name)
+        % Current files have same name (ignoring case) ...
+        if (file1(n1).isdir + file2(n2).isdir == 2)
+            % Both files are directories. Call this function (recursive) ...
+            dirbackup([s1, '\', file1(n1).name], [s2, '\', file2(n2).name], runmode);
+        elseif (file2(n2).isdir + file1(n1).isdir == 1)
+            % One file is a directory, while the other is not ...
+            error('Target directories contain a file ''%s'' and directory ''%s''', file1(n1).name, file2(n2).name);
+        elseif (file1(n1).isdir + file2(n2).isdir == 0)
+            % Both are non-directory files ...
+            if ~strcmp(file1(n1).date, file2(n2).date)
+                % The dates are different and one of the files should be updated ...
+                loc_update(s1, file1(n1), s2, file2(n2), runmode);
+            end
+        end
+        % Continue to next files in s1 and s2 ...
+        n1 = n1 + 1;
+        n2 = n2 + 1;
+    else
+        % Current files in s1 and s2 are different. Sort the files by
+        % name, ignoring case ...
+        [xx, pos] = sort(lower({file1(n1).name, file2(n2).name}));
+        if (pos(1) == 1)
+            % The file in s1 is higher up the alphabetic rank. Copy
+            % file from s1 to s2 ...
+            loc_copy(s1, file1(n1), s2, file1(n1), runmode);
+            % Continue to next file in s1 ...
+            n1 = n1 + 1;
+        else
+            % The file in s2 is higher up the alphabetic rank ...
+            % Directory s1 is the source, delete file or directory in s2 ....
+            if file2(n2).isdir
+                loc_deletedir([s2, '\', file2(n2).name], runmode);
+            else
+                loc_deletefile([s2, '\', file2(n2).name], runmode);
+            end
+            % Continue to next file in s2 ...
+            n2 = n2 + 1;
+        end
+    end
 end
 
 % One of the directories is exhausted ...
 if (n1 > nfiles1)
-   % Remaining files in s2 not present in s1. Delete files from s2 ...
-   for n2 = n2:nfiles2
-      if (file2(n2).isdir)
-         loc_deletedir([s2, '\', file2(n2).name], runmode);
-      else
-         loc_deletefile([s2, '\', file2(n2).name], runmode);
-      end
-   end
-   n2 = n2 + 1;
+    % Remaining files in s2 not present in s1. Delete files from s2 ...
+    for n2 = n2:nfiles2
+        if (file2(n2).isdir)
+            loc_deletedir([s2, '\', file2(n2).name], runmode);
+        else
+            loc_deletefile([s2, '\', file2(n2).name], runmode);
+        end
+    end
+    n2 = n2 + 1;
 elseif (n2 > nfiles2)
-   % Remaining files in s1 not present in s2. Copy the files to s2 ...
-   for n1 = n1:nfiles1
-      loc_copy(s1, file1(n1), s2, file1(n1), runmode);
-   end
-   n1 = n1 + 1;
+    % Remaining files in s1 not present in s2. Copy the files to s2 ...
+    for n1 = n1:nfiles1
+        loc_copy(s1, file1(n1), s2, file1(n1), runmode);
+    end
+    n1 = n1 + 1;
 end
 
 % fprintf('\n')
@@ -142,30 +167,34 @@ R = 'y';
 source = [srcdir, '\', srcfile.name];
 target = [tgtdir, '\.'];
 if (datenum(srcfile.date) > datenum(tgtfile.date))
-   % Directory s1 has newer file, update file in s2 ...
-   if (runmode == 1)
-      fprintf('\nThe file ''%s'' (source) is newer than the file ''%s'' (target). ', source, target);
-      R = input('\nDo you wish to overwrite the target file? (y/n/q) ', 's');
-   end
+    % Directory s1 has newer file, update file in s2 ...
+    if (runmode == 1)
+        fprintf('\nThe file ''%s'' (source) is newer than the file ''%s'' (target). ', source, target);
+        R = input('\nDo you wish to overwrite the target file? (y/n/q) ', 's');
+    end
 else
-   fprintf('\nThe file ''%s'' (source) is older than the file ''%s'' (target). ', source, target);
-   R = input('\nAre you sure you wish to overwrite the target file? (y/n/q)  ', 's');
+    if runmode == 2
+        R = 'n'; % If the source is older than the target, update the source instead
+    else
+        fprintf('\nThe file ''%s'' (source) is older than the file ''%s'' (target). ', source, target);
+        R = input('\nAre you sure you wish to overwrite the target file? (y/n/q)  ', 's');
+    end
 end
 ok = getanswer(R);
 fprintf('%s ... ', fullfile(tgtdir, tgtfile.name));
 if ok
-   if (runmode >= 0)
-      [status, out] = system(sprintf('xcopy "%s" "%s" /K /H /Y /Q', source, target));
-   else
-      status = 0;
-   end
-   if status
-      fprintf('An unforeseen error occurred during the backup process.\nThe file ''%s'' could not be copied to ''%s''.\nSystem message: %s\n', source, target, out);
-   else
-      fprintf('[UPDATED]\n');
-   end
+    if (runmode >= 0)
+        [status, out] = system(sprintf('xcopy "%s" "%s" /K /H /Y /Q', source, target));
+    else
+        status = 0;
+    end
+    if status
+        fprintf('An unforeseen error occurred during the backup process.\nThe file ''%s'' could not be copied to ''%s''.\nSystem message: %s\n', source, target, out);
+    else
+        fprintf('[UPDATED]\n');
+    end
 else
-   fprintf('[SKIPPED]\n');
+    fprintf('[SKIPPED]\n');
 end
 
 % Local copy function ...
@@ -177,26 +206,26 @@ target = tgtdir;
 % console). The following code has been tested and worked under various
 % conditions tested.
 if srcfile.isdir
-   source = [source, '\*'];
-   % Check to see if directory already exists. This shouldn't be necessary,
-   % but it is! 
-   if ~exist([target, '\', srcfile.name], 'dir')
-      mkdir(target, srcfile.name);
-   end
-   target = [target, '\', srcfile.name, '\.'];
+    source = [source, '\*'];
+    % Check to see if directory already exists. This shouldn't be necessary,
+    % but it is!
+    if ~exist([target, '\', srcfile.name], 'dir')
+        mkdir(target, srcfile.name);
+    end
+    target = [target, '\', srcfile.name, '\.'];
 else
-   target = [target, '\.'];
+    target = [target, '\.'];
 end
 fprintf('%s ... ', fullfile(tgtdir, srcfile.name));
 if (runmode >= 0)
-   [status, out] = system(sprintf('xcopy "%s" "%s" /E /K /H /Y /Q', source, target));
+    [status, out] = system(sprintf('xcopy "%s" "%s" /E /K /H /Y /Q', source, target));
 else
-   status = 0;
+    status = 0;
 end
 if status
-   fprintf('An unforeseen error occurred during the backup process.\nThe file/directory ''%s'' could not be copied to ''%s''.\nSystem message: %s\n', source, target, out);
+    fprintf('An unforeseen error occurred during the backup process.\nThe file/directory ''%s'' could not be copied to ''%s''.\nSystem message: %s\n', source, target, out);
 else
-   fprintf('[COPIED]\n');
+    fprintf('[COPIED]\n');
 end
 
 %Local file delete function ...
@@ -206,25 +235,25 @@ R = 'y';
 if runmode==2
     R = 'n'; % never delete
 elseif runmode >= 0 % Edited to avoid accidentally deleting files! HP 6/9/23
-   fprintf('\nThe file ''%s'' is no longer in the source directory. \n', target);
-   R = input('Delete? (y/n/q) ', 's');
+    fprintf('\nThe file ''%s'' is no longer in the source directory. \n', target);
+    R = input('Delete? (y/n/q) ', 's');
 end
 % Go through potential user options and retrieve answer ...
 ok = getanswer(R);
 fprintf('''%s'' ... ', target);
 if ok
-   if (runmode >= 0)
-      [status, out] = system(sprintf('del /AH /AR /AS /AA "%s"', target));
-   else
-      status = 0;
-   end
-   if status
-      fprintf('An unforeseen error occurred during the backup process.\nThe file ''%s'' could not be deleted.\nSystem message: %s\n', target, out);
-   else
-      fprintf('[DELETED]\n');
-   end
+    if (runmode >= 0)
+        [status, out] = system(sprintf('del /AH /AR /AS /AA "%s"', target));
+    else
+        status = 0;
+    end
+    if status
+        fprintf('An unforeseen error occurred during the backup process.\nThe file ''%s'' could not be deleted.\nSystem message: %s\n', target, out);
+    else
+        fprintf('[DELETED]\n');
+    end
 else
-   fprintf('[SKIPPED]\n');
+    fprintf('[SKIPPED]\n');
 end
 
 % Local directory delete function ...
@@ -234,35 +263,35 @@ R = 'y';
 if runmode==2
     R = 'n'; % never delete
 elseif runmode >=0
-   fprintf('\nThe directory ''%s'' is no longer in the source directory. \n', target);
-   R = input('Delete? (y/n/q) ', 's');
+    fprintf('\nThe directory ''%s'' is no longer in the source directory. \n', target);
+    R = input('Delete? (y/n/q) ', 's');
 end
 % Go through potential user options and retrieve answer ...
 ok = getanswer(R);
 fprintf('''%s'' ... ', target);
 if ok
-   if runmode >= 0
-      [status, out] = system(sprintf('rmdir "%s" /S /Q', target));
-   else
-      status = 0;
-   end
-   if status
-      fprintf('An unforeseen error occurred during the backup process.\nThe directory ''%s'' could not be deleted.\nSystem message: %s\n', target, out);
-   else
-      fprintf('[DELETED]\n');
-   end
+    if runmode >= 0
+        [status, out] = system(sprintf('rmdir "%s" /S /Q', target));
+    else
+        status = 0;
+    end
+    if status
+        fprintf('An unforeseen error occurred during the backup process.\nThe directory ''%s'' could not be deleted.\nSystem message: %s\n', target, out);
+    else
+        fprintf('[DELETED]\n');
+    end
 else
-   fprintf('[SKIPPED]\n');
+    fprintf('[SKIPPED]\n');
 end
 
 function ok = getanswer(R)
 ok = 0;
 if strcmpi(R, 'y')
-   ok = 1;
+    ok = 1;
 elseif strcmpi(R, 'n')
-   ok = 0;
+    ok = 0;
 elseif strcmpi(R, 'q')
-   error('Backup process stopped by user.');
+    error('Backup process stopped by user.');
 else
-   error('Incorrect choice. Backup process stopped.');
+    error('Incorrect choice. Backup process stopped.');
 end
