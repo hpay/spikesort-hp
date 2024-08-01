@@ -1,5 +1,5 @@
 function dirbackup(s1, s2, runmode, exceptions)
-% function dirbackup(a, b, mode)
+% function dirbackup(a, b, mode, exceptions)
 %
 % Creates a backup of folder 'a' in folder 'b' or updates the current
 % backup in folder 'b'. The function deletes files and folders from

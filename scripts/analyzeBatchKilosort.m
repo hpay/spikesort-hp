@@ -3,7 +3,7 @@ function analyzeBatchKilosort(T, data_dir, ksDirFun, results_dir, overwrite_gmm)
 
 %% Get waveforms for all sessions in table T
 only_good = 0; % Process all for now, select good later
-for ii = 1:height(T)
+for ii = height(T):-1:1
     
     % Find the binary directory
     root_dir = fullfile(data_dir, T.filename{ii});
@@ -54,15 +54,15 @@ end
 %% Apply GMM results to all sessions
 gm = getfield(load(fullfile(results_dir, gmm_name)),'gm');
 option_only_good = 0;
-plot_on = 0;
+plot_on = 1;
 for ii = height(T):-1:1
     ks_dir = ksDirFun(fullfile(data_dir, T.filename{ii}));
     if ~exist(ks_dir,'dir'); continue; end
 
     if ~exist(fullfile(ks_dir,'gmm_result.mat'),'file') || overwrite_gmm
         disp(T.filename{ii})
-        [idx,labels] = GMM_apply(gm, fullfile(data_dir, T.filename{ii}), option_only_good, plot_on);
-        save(fullfile(ks_dir,'gmm_result.mat'),'idx','labels')
+        [id,labels, stats] = GMM_apply(gm, fullfile(data_dir, T.filename{ii}), option_only_good, plot_on);
+        save(fullfile(ks_dir,'gmm_result.mat'),'id','labels','stats')
         
         wvStruct = getfield(load(fullfile(ks_dir, 'waveformStruct.mat')), 'wvStruct');
         wvStruct.typeLabels = labels;
@@ -79,6 +79,6 @@ for ii = height(T):-1:1
     if strcmp(T.manually_sorted{ii},'yes'); disp('Skipping, manually sorted');
         continue;
     end
-    applyQualityMetrics(ks_dir);
+    applyQualityMetrics(ks_dir); % updates wvStruct.goodLabels in waveformStruct.mat
 end
 

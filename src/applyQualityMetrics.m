@@ -32,6 +32,7 @@ end
 T_cluster_ContamPct_old = readtable(fullfile(ks_dir, 'cluster_ContamPct_orig.tsv'),'FileType','Text');
 cluster_id = T_cluster_ContamPct_old.cluster_id;
 T_cluster_KSLabel_old = readtable(fullfile(ks_dir, 'cluster_KSLabel_orig.tsv'),'FileType','Text');
+mask_good_orig = strcmp(T_cluster_KSLabel_old.KSLabel,'good');
 
 % Label units according to contamination
 mask_noise = wvStruct.contam>max_contam_mua | wvStruct.nSpikes<min_spikes_mua;
@@ -43,8 +44,8 @@ max_range = (max(max_all) - min(max_all))./max(max_all);
 max_range_threshold = 0.5;
 mask_artifact = max_range(:)<max_range_threshold;
 
-% Label units according to GMM
-mask_good = mask_good & ismember(gm_result.labels,{'E','I','intermediate','moderate_outlier','unknown'}) & ~mask_artifact;
+% Label units according to GMM - edit to never move a cell from mua to "good"
+mask_good = mask_good & ismember(gm_result.labels,{'E','I','intermediate','moderate_outlier','unknown'}) & ~mask_artifact & mask_good_orig;
 mask_noise = mask_noise | ismember(gm_result.labels,{'extreme_outlier'}) | mask_artifact;
 mask_mua = ~mask_noise & ~mask_good;
 if nnz(mask_mua)+nnz(mask_good)+nnz(mask_noise) ~= length(mask_noise); error('check masks'); end
@@ -69,8 +70,10 @@ KSLabel(mask_mua) = deal({'mua'});
 KSLabel(mask_noise) = deal({'noise'});
 fprintf('ngood new %i, ngood orig %i\n', nnz(mask_good), nnz(strcmp(T_cluster_KSLabel_old.KSLabel,'good')))
 T_cluster_KSLabel_new = table(cluster_id, KSLabel);
+group = KSLabel;
+T_cluster_group_new = table(cluster_id, group);
 writetable(T_cluster_KSLabel_new, fullfile(ks_dir, 'cluster_KSLabel.tsv'),'FileType','Text','Delimiter','tab','WriteVariableNames',true);
-writetable(T_cluster_KSLabel_new, fullfile(ks_dir, 'cluster_group.tsv'),'FileType','Text','Delimiter','tab','WriteVariableNames',true);
+writetable(T_cluster_group_new, fullfile(ks_dir, 'cluster_group.tsv'),'FileType','Text','Delimiter','tab','WriteVariableNames',true);
 
 % Update cluster_ContamPct.tsv so Phy sees the same numbers
 ContamPct = round(wvStruct.contam*100 *10)/10;

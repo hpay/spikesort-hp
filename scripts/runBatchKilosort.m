@@ -33,7 +33,7 @@ fnames = {fnames.name};
 Tlocal = Tall(ismember(Tall.filename, fnames),:);
 
 % Save directory function -- ks results for each session saved here
-ksDirFun = @(root_dir) fullfile(root_dir,'kilosort2_output');
+ks_dir_fun = @(root_dir) fullfile(root_dir,'kilosort2_output');
 
 % Repository folder
 scripts_dir = fileparts(which(mfilename));
@@ -51,7 +51,7 @@ addpath(results_dir);
 % warning("off","parallel:gpu:device:DeviceDeprecated");
 
 %% Backup from local SSD to server
-exceptions = {'kilosort2_output'}; % Back this up specifically later
+exceptions = {'kilosort2_output','\.avi$','raw*'}; % Back this up specifically later
 runmode = 2; % Don't delete anything!
 for ii = 1:height(Tlocal)
     fprintf('\n%s\n',Tlocal.filename{ii})
@@ -59,6 +59,17 @@ for ii = 1:height(Tlocal)
     root_dir_remote = fullfile(data_dir_remote, Tlocal.filename{ii}); % e.g. Z:\Hannah\ephys\HC11_230129
     if ~exist(root_dir_local,'dir') || strcmp(root_dir_local, root_dir_remote); continue; end
     dirbackup(root_dir_local, root_dir_remote, runmode, exceptions)
+end
+
+%% Backup from server to local!
+exceptions = {'kilosort2_output','\.avi$','raw*'}; % Back this up specifically later
+runmode = 2; % Don't delete anything!
+for ii = 1:height(Tlocal)
+    fprintf('\n%s\n',Tlocal.filename{ii})
+    root_dir_local = fullfile(data_dir_local, Tlocal.filename{ii});  % e.g. D:\data\HC11_230129
+    root_dir_remote = fullfile(data_dir_remote, Tlocal.filename{ii}); % e.g. Z:\Hannah\ephys\HC11_230129
+    if ~exist(root_dir_local,'dir') || strcmp(root_dir_local, root_dir_remote); continue; end
+    dirbackup(root_dir_remote, root_dir_local, runmode, exceptions)
 end
 
 %% Run Kilosort2
@@ -72,7 +83,7 @@ for ii = 1:height(Tlocal)
     raw_dir = fullfile(raw_dir_temp.folder, raw_dir_temp.name);
     
     % Create save directory
-    ks_dir = ksDirFun(root_dir_local);
+    ks_dir = ks_dir_fun(root_dir_local);
     
     % If it exists already, either overwrite or skip
     if ~isempty(dir(fullfile(ks_dir,'*.npy')))
@@ -102,7 +113,7 @@ for ii = 1:height(Tlocal)
     
     % Copy kilosort output to the server
     root_dir_remote = fullfile(data_dir_remote, Tlocal.filename{ii});
-    ks_dir_remote = ksDirFun(root_dir_remote);
+    ks_dir_remote = ks_dir_fun(root_dir_remote);
     copyfile(ks_dir, ks_dir_remote)
     
     % Edit params.py to reflect new amplifier.dat location
@@ -125,24 +136,28 @@ end
 
 
 %% Analyze waveforms on local server
-% analyzeBatchKilosort(Tlocal, data_dir_remote, ksDirFun, results_dir, overwrite_gmm)
-analyzeBatchKilosort(Tlocal, data_dir_local, ksDirFun, results_dir, overwrite_gmm)
+analyzeBatchKilosort(Tlocal, data_dir_remote, ks_dir_fun, results_dir, overwrite_gmm)
+% analyzeBatchKilosort(Tlocal, data_dir_local, ksDirFun, results_dir, overwrite_gmm)
 
-% Backup results
+% Backup results from local to remote
 exceptions = {'params.py','phy.log','.phy'};
 runmode = 2;
 for ii = 1:height(Tlocal)
     fprintf('\n%s\n',Tlocal.filename{ii})
-    s1 = ksDirFun(fullfile(data_dir_local, Tlocal.filename{ii}));
-    s2 = ksDirFun(fullfile(data_dir_remote, Tlocal.filename{ii}));
+    s1 = ks_dir_fun(fullfile(data_dir_local, Tlocal.filename{ii}));
+    s2 = ks_dir_fun(fullfile(data_dir_remote, Tlocal.filename{ii}));
     dirbackup(s1, s2, runmode, exceptions)
 end
-
-%% Analyze waveforms on remote server
-% analyzeBatchKilosort(Tall, data_dir_remote, ksDirFun, results_dir)
-
-
+% Backup results from remote to local 
+exceptions = {'params.py','phy.log','.phy'};
+runmode = 2;
+for ii = 1:height(Tlocal)
+    fprintf('\n%s\n',Tlocal.filename{ii})
+    s1 = ks_dir_fun(fullfile(data_dir_local, Tlocal.filename{ii}));
+    s2 = ks_dir_fun(fullfile(data_dir_remote, Tlocal.filename{ii}));
+    dirbackup(s2, s1, runmode, exceptions)
+end
 
 
 %% Optional plotting of # of cells and E/I ratio
-plotBasicResults(Tlocal, data_dir_remote, ksDirFun)
+plotBasicResults(Tlocal, data_dir_remote, ks_dir_fun)
