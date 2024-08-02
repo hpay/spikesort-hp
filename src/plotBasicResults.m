@@ -31,7 +31,7 @@ tWF = -wvstruct_curr.spkOffset + (0:nt-1)*dt;
 Ranatomy = getAnatomy(session_all, channel_all, T); % Store AP/ML/DV info
  
 plotGMMresults(tWF, wv_all, stats_all, id_all, good_all, session_all, Ranatomy, channel_all, unitID_all)
-
+drawnow
 
 
 
@@ -94,7 +94,7 @@ nE = []; nI = [];
  end
  T.nE = nE(:); T.nI= nI(:);
 T.ratioI = T.nI./(T.nE+T.nI);
-disp(T(:,{'filename','depth','nE','nI','ratioE'}))
+disp(T(:,{'filename','depth','nE','nI','ratioI'}))
 
 figure;
 hs = gobjects(length(birds),1);
@@ -105,22 +105,22 @@ for ii = 1:length(birds)
 %         hs(ii) = plot(T.depth(mask), T.nE(mask)+T.nI(mask),'o','Color',c(strcmp(birds, birds{ii}),:),'LineWidth',2); hold on
 end
 xlabel('Depth (tip, mm)')
-ylabel('Fraction of cells E')
+ylabel('Fraction of cells I')
 % ylabel('Total cells E+I')
 grid
 legend(birds)
-ylim([0 1])
+ylim([0 .5])
 
-%% Fraction I 
+%% Fraction I vs cell depth
 figure;
 maskE = strcmp(good_all,'good') & strcmp(id_all,'E');
 maskI = strcmp(good_all,'good') & strcmp(id_all,'I');
 depth = Ranatomy.DV;
-numBins = 8;
+numBins = 16;
 binEdges = linspace(prctile(depth(Ranatomy.in_hippocampus),1), 0, numBins + 1);
 [~, ~, binIndices] = histcounts(depth, binEdges);
 binIndices(binIndices == 0 | binIndices > numBins) = [];
 countE = accumarray(binIndices, maskE(binIndices > 0), [numBins, 1]);
 countI = accumarray(binIndices, maskI(binIndices > 0), [numBins, 1]);
-figure; plot((binEdges(1:end-1)+binEdges(2:end))/2, countI./(countE+countI),'o-k')
-xlabel('Depth')
+figure; plot(-(binEdges(1:end-1)+binEdges(2:end))/2, countI./(countE+countI),'o-k')
+xlabel('Depth'); ylabel('Fraction I')
