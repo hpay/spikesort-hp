@@ -134,12 +134,15 @@ end
 % Navigate to folder with kilosort results (Type Z: to change to engram drive. then cd path. )
 %   phy template-gui params.py
 
-
 %% Analyze waveforms on local server
-analyzeBatchKilosort(Tlocal, data_dir_remote, ks_dir_fun, results_dir, overwrite_gmm)
-% analyzeBatchKilosort(Tlocal, data_dir_local, ksDirFun, results_dir, overwrite_gmm)
+% analyzeBatchKilosort(Tlocal, data_dir_remote, ks_dir_fun, results_dir, overwrite_gmm)
+analyzeBatchKilosort(Tlocal, data_dir_local, ks_dir_fun, results_dir, overwrite_gmm)
 
-% Backup results from local to remote
+
+%% Plot spike sorting results across all sessions
+plotEIClusters(Tlocal, data_dir, ks_dir_fun)
+
+%% Backup results from local to remote
 exceptions = {'params.py','phy.log','.phy'};
 runmode = 2;
 for ii = 1:height(Tlocal)

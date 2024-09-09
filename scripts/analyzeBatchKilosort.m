@@ -28,6 +28,7 @@ for ii = height(T):-1:1
             % Re-save in case any updates to KS labels
             wvStruct.goodLabels = cluster_labels;
             save(fullfile(ks_dir,'waveformStruct.mat'),'wvStruct')
+            fprintf('Saved new waveform labels %s\n', ks_dir)
             continue;
         end
         
@@ -37,7 +38,8 @@ for ii = height(T):-1:1
     disp(T(ii,:))
     wvStruct = getSessionWaveforms(raw_dir, ks_dir, only_good);
     save(fullfile(ks_dir, 'waveformStruct.mat'), 'wvStruct','-v7.3')
-    
+    fprintf('Saved new waveforms %s\n', ks_dir)
+
 end
 
 %% Generate GMM based on all curated sessions - rerun after sorting new sessions
