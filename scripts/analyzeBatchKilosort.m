@@ -7,10 +7,7 @@ for ii = height(T):-1:1
     
     % Find the binary directory
     root_dir = fullfile(data_dir, T.filename{ii});
-    raw_dir_temp = dir(fullfile(root_dir, 'raw*'));
-    if isempty(raw_dir_temp); continue; end
-    raw_dir = fullfile(raw_dir_temp.folder, raw_dir_temp.name);
-    ks_dir = ksDirFun(root_dir);
+       ks_dir = ksDirFun(root_dir);
 
     % Check if already done with the latest sorting unit labels
     if exist(fullfile(ks_dir, 'waveformStruct.mat'),'file')
@@ -34,8 +31,12 @@ for ii = height(T):-1:1
         
     end
     
-    % Save waveforms for cell type clustering
+    % Save waveforms for cell type clustering  
     disp(T(ii,:))
+    raw_dir_temp = dir(fullfile(root_dir, 'raw*'));
+    raw_dir = fullfile(raw_dir_temp.folder, raw_dir_temp.name);
+    if isempty(raw_dir_temp); warning('No raw dir!'); end
+
     wvStruct = getSessionWaveforms(raw_dir, ks_dir, only_good);
     save(fullfile(ks_dir, 'waveformStruct.mat'), 'wvStruct','-v7.3')
     fprintf('Saved new waveforms %s\n', ks_dir)
