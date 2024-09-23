@@ -14,10 +14,8 @@ and place them in a flat directory structure, e.g.:
     
     |--kilosort2.0
     
+First run the built-in kilosort gui (kilosort.m in in the kilosort2.0 repo) to check kilosort installation
 
 Then navigate to the spikesort-hp\scripts folder and: 
-- runBatchKilosort.m to run kilo2.0 on a bunch of files in matlab using SC's custom settings
+- runBatchKilosort.m to run kilo2.0 on a bunch of files in matlab using some custom settings
 
-Recommend to first run the built-in kilosort gui (kilosort.m in in the kilosort2.0 repo) to check kilosort installation
-
-Then can run batch KS using our custom settings 
