@@ -42,7 +42,7 @@ addpath(genpath(fullfile(spikesort_hp_dir,'src')))
 
 % Add kilosort2.0 directory (from: https://github.com/MouseLand/Kilosort/releases/tag/v2.0)
 code_dir = fileparts(spikesort_hp_dir); %
-addpath(genpath(fullfile(code_dir, 'kilosort-2.0')))
+addpath(genpath(fullfile(spikesort_hp_dir, 'kilosort-2.0')))
 
 % Common results folder (GMM etc)
 results_dir = fullfile(fileparts(scripts_dir), 'results');

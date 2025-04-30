@@ -1,5 +1,5 @@
 %% Run a single session 
-addpath(genpath('D:\hannah\Dropbox\code\spikesort\kilosort-2.0'))
+addpath(genpath('D:\hannah\Dropbox\code\spikesort\spikesort-hp\kilosort-2.0'))
 addpath(genpath('..\src')) % overloaded functions run_single_kilosort
 
 % Select file and probe
