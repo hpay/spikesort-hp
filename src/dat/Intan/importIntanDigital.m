@@ -5,14 +5,15 @@ function datout = importIntanDigital(filepath, option_raw_dig)
 %    filename
 % 
 % Output:
-%   datout - dat object with fields:
-%     'data' - column vector of numeric data
-%     'chanlabels' - string labels for each channel
-%     'chanvals' - numeric values associated with each
-%         channel
-%     'samplerate' - derived, not claimed (samples/second, double-precision)
-%     'tstart','tend' - time of first/last sample; in seconds.
-%     'units' - descriptive string giving units of data.
+%   datout - struct array, one element per channel, with fields:
+%     'data' - N x 2 [rise fall] times (s), one pulse per row; first rise is NaN if the
+%              line starts high, last fall is NaN if it ends high (raw 0/1 trace if option_raw_dig)
+%     'chanlabel' - channel name
+%     'chanval' - channel number
+%     'samplerate' - 'dig' for edge times, else samples/s
+%     'tstart','tend' - time of first/last sample (s)
+%     'units' - 's'
+%     'info' - (first element only) file header
 
 %
 % Dependencies: readIntanPerType
@@ -58,39 +59,28 @@ if isfield(D.header,'board_dig_in_channels') && ~isempty(D.header.board_dig_in_c
     
     nchans_dig = length(D.header.board_dig_in_channels);
     
-    % Preallocate
-    datout = dat(nchans_dig);
-
+    datout = struct([]);
     for jj = 1:nchans_dig
-        
         ichanlabel = D.header.board_dig_in_channels(jj).custom_channel_name;
         ichanval = D.header.board_dig_in_channels(jj).native_order;
-        
         if ~option_raw_dig
-            
-            iData_rise = D.t_dig(diff(D.board_dig_in_data(jj,:))>0);
-            iData_fall = D.t_dig(diff(D.board_dig_in_data(jj,:))<0);
-            
-            iData_rise = iData_rise(:);
-            iData_fall = iData_fall(:);
-            
-            % First column is rise times, second column is fall times
-            try
-                if iData_rise(1)>iData_fall(1)
-                    iData_rise = [NaN; iData_rise];
-                end
-                if iData_fall(end)<iData_rise(end)
-                    iData_fall = [iData_fall; NaN];
-                end
-            end
-            iData = [iData_rise iData_fall];
-            
-            datout(jj) = dat(iData,ichanlabel,ichanval,'dig',itstart,itend,iunits);
+            x = D.board_dig_in_data(jj,:);
+            rise = D.t_dig(diff(x)>0)'; fall = D.t_dig(diff(x)<0)';
+            if ~isempty(fall) && (isempty(rise) || fall(1) < rise(1)); rise = [NaN; rise]; end % starts high
+            if numel(fall) < numel(rise); fall(end+1,1) = NaN; end % ends high
+            iData = [rise fall];
+            isamplerate = 'dig';
         else
-            iData = D.board_dig_in_data(jj,:)>0;
-            datout(jj) = dat(iData,ichanlabel,ichanval,samplerate,itstart,itend,iunits);
-            
+            iData = (D.board_dig_in_data(jj,:)>0)';
+            isamplerate = samplerate;
         end
+        datout(jj).data = iData;
+        datout(jj).chanlabel = ichanlabel;
+        datout(jj).chanval = ichanval;
+        datout(jj).samplerate = isamplerate;
+        datout(jj).tstart = itstart;
+        datout(jj).tend = itend;
+        datout(jj).units = iunits;
     end
 end
 

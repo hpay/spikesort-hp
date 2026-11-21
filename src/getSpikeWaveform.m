@@ -33,10 +33,15 @@ start_ind = round(Fs*tspike);
 start_ind(start_ind<duration_ind_initial) = [];
 
 % Load the raw data and take the average waveform
-% rawdata = readIntanPerChannel(fullfile(raw_folder, raw_file), duration_ind_initial, start_ind-offset_ind_initial);
-dataInds = ((start_ind-offset_ind_initial) + (1:duration_ind_initial))';
-waveForms = reshape(memMap.Data.x(1:nCh, dataInds(:)), [nCh, duration_ind_initial, length(start_ind)]);
-mean_wave = mean(waveForms,3)';
+% fread each window directly (~10x faster than indexing the memmapfile; same result)
+fid = fopen(memMap.Filename, 'r');
+wave_sum = zeros(nCh, duration_ind_initial);
+for first_samp = reshape(start_ind - offset_ind_initial, 1, []) % 0-indexed first sample of each window
+    fseek(fid, 2*nCh*first_samp, 'bof');
+    wave_sum = wave_sum + double(fread(fid, [nCh duration_ind_initial], '*int16'));
+end
+fclose(fid);
+mean_wave = (wave_sum / numel(start_ind))';
 
 % Filter the average waveform
 mean_wave_filt = filtfilt(b_lowpass,1, filtfilt(b_highpass,1, mean_wave));

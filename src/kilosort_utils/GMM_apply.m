@@ -4,7 +4,7 @@ function [idx, labels, stats] = GMM_apply(gm, all_dir, option_only_good, plot_on
 if ~exist('option_only_good','var'); option_only_good = []; end
 id = 'stats:gmdistribution:cluster:MissingData'; warning('off',id)
 n_clusters = gm.NumComponents;
-[stats, goodIDs, mxWF, tWF] = GMM_stats(all_dir, option_only_good); 
+[stats, goodIDs, mxWF, tWF, wf_shift, unit_labels] = GMM_stats(all_dir, option_only_good);
 [idx, nlogL, P, logpdf, d2] = gm.cluster(table2array(stats));
 warning('on',id)
 % P: posterior probabilities of each Gaussian mixture component in gm given each observation in X
@@ -19,6 +19,10 @@ idx(mask1) = 0;
 % Categorize cells where 3. trough is not at expected time (>2 sigma) as unknown
 [~, mins] = min(mxWF,[],2);
 tmins = tWF(mins);
+if any(~isnan(wf_shift)) % aligned waveforms: undo the shift to get the original trough time
+    shift = wf_shift(:)'; shift(isnan(shift)) = 0;
+    tmins = tmins + shift*mean(diff(tWF));
+end
 mean_t = mean(tmins(idx>0));
 std_t = std(tmins(idx>0));
 % mask_tmin = abs(tmins)>0.25*1e-3; % (s)
@@ -74,16 +78,17 @@ if exist('plot_on','var') && plot_on
     colormap(cool)
 
     clf
-    hs = subplot(2,4,1);
+    hs = subplot(2,4,2);
     scatter3( stats.duration/fs*1e3, stats.asymmetry,stats.rate_log10, 15,stats.pk_deriv, 'filled');   axis vis3d
     xlabel('Duration tr-pk(ms)'); ylabel('Asymmetry'); zlabel('log10(rate)')
-    c=colorbar('north'); c.Label.String = 'Ratio peak:trough deriv.';
+    c=colorbar('north','AxisLocation','out'); c.Label.String = 'Ratio peak:trough deriv.';
     
-    hs(2) = subplot(2,4,2);
+    hs(2) = subplot(2,4,1); % categories on the left
     scatter3(stats.duration/fs*1e3, stats.asymmetry,stats.rate_log10,15,idx,'filled'); axis vis3d
     xlabel('Duration tr-pk(ms)'); ylabel('Asymmetry'); zlabel('log10(rate)')
-    if ischar(all_dir); title(all_dir,'Interp','none'); end
-    c=colorbar('north');
+    % discrete colors matching the waveform panels: unknown, E, I, intermediate, moderate, extreme outlier
+    colormap(hs(2), [0.6 0.6 0.6; 1 0 0; 0 0 1; 0.6 0.4 1; 0.8 0.2 1; 0 0 0]); clim(hs(2), [-0.5 5.5])
+    c=colorbar('north','AxisLocation','out');
     c.Ticks = 0:5;
     c.TickLabels = {'unknown','E','I','intermediate','moderate_outlier','extreme_outlier'};
     c.TickLabelInterpreter = 'none';
@@ -91,42 +96,55 @@ if exist('plot_on','var') && plot_on
     hs(3) = subplot(2,4,3);
     scatter3(stats.duration/fs*1e3, stats.asymmetry,stats.rate_log10,15,d2_plot,'filled'); axis vis3d
     xlabel('Duration tr-pk(ms)'); ylabel('Asymmetry'); zlabel('log10(rate)')
-    c=colorbar('north');
+    c=colorbar('north','AxisLocation','out');
     c.Label.String = 'log squared Mahalanobis distance';
       
     hs(4) = subplot(2,4,4);
     scatter3(stats.duration/fs*1e3, stats.asymmetry,stats.rate_log10,15,P_plot,'filled'); axis vis3d
     xlabel('Duration tr-pk(ms)'); ylabel('Asymmetry'); zlabel('log10(rate)')
-    c=colorbar('north');
+    c=colorbar('north','AxisLocation','out');
     c.Label.String = 'log posterior P';
     %     linkaxes(hs);
     Link = linkprop(hs,{'CameraUpVector', 'CameraPosition', 'CameraTarget', 'XLim', 'YLim', 'ZLim'});
     setappdata(gcf, 'StoreTheLink', Link);
      axis(hs,'square')
     xlim([0  1]); ylim([-1 1]); zlim([-2.3 1.6]); set(gca,'XTick',0:.2:1)
-    
+    for h = hs; h.Position(4) = h.Position(4) - 0.05; end % lower the top edge (bottom unchanged) to leave room for the title
+
     % Plot waveforms
     hs = subplot(2,4,5); 
     if any(idx==1); plot(tWF,zscore(mxWF(idx==1, :)'),'k');   hold on,plot(tWF,mean(zscore(mxWF(idx==1,:)'),2),'r','LineWidth',2); end
-    axis square; title('Excitatory'); ylabel('Z-scored amplitude')    
+    axis square; title(sprintf('Excitatory (n = %d)', sum(idx==1))); ylabel('Z-scored amplitude')
     
     hs(2) = subplot(2,4,6); 
     if any(idx==2); plot(tWF,zscore(mxWF(idx==2, :)'),'k');  hold on,plot(tWF,mean(zscore(mxWF(idx==2,:)'),2),'b','LineWidth',2); end
-    axis square; title('Inhibitory')
+    axis square; title(sprintf('Inhibitory (n = %d)', sum(idx==2)))
     
     hs(3) = subplot(2,4,7);
-    if any(idx==0); plot(tWF,zscore(mxWF(idx==0, :)'),'Color','k');  hold on; end
-    if any(idx==3); plot(tWF,zscore(mxWF(idx==3, :)'),'Color',[ 0.6000    0.4000    1.0000]); hold on; end
-        axis square; title('Intermediate/unknown')
+    if any(idx==0); plot(tWF,zscore(mxWF(idx==0, :)'),'Color',[0.6 0.6 0.6]);  hold on; end
+    if any(idx==3); plot(tWF,zscore(mxWF(idx==3, :)'),'Color',[0.6 0.4 1]); hold on; end
+    axis square; title({sprintf('\\color[rgb]{0.6 0.4 1}intermediate (n = %d)', sum(idx==3)), ...
+        sprintf('\\color[rgb]{0.6 0.6 0.6}unknown (n = %d)', sum(idx==0))})
 
-        hs(4) = subplot(2,4,8);
-    if any(idx==4); plot(tWF,zscore(mxWF(idx==4, :)'),'Color',[0.8 .2 1]); hold on; end
+    hs(4) = subplot(2,4,8);
+    if any(idx==4); plot(tWF,zscore(mxWF(idx==4, :)'),'Color',[0.8 0.2 1]); hold on; end
     if any(idx==5); plot(tWF,zscore(mxWF(idx==5, :)'),'Color','k');  end
-%     legend('intermediate', 'moderate_outlier','extreme_outlier','unknown')
-    axis square; title('moderate outlier/extreme outlier')
+    axis square; title({sprintf('\\color[rgb]{0.8 0.2 1}moderate outlier (n = %d)', sum(idx==4)), ...
+        sprintf('\\color{black}extreme outlier (n = %d)', sum(idx==5))})
     linkaxes(hs); xlim(tWF([1 end])); 
     ylim([-6 3])
     grid(hs,'on')
+    if isempty(option_only_good) || ~option_only_good
+        unit_set = 'all units, good + MUA';
+        if any(strcmp(unit_labels, 'noise')); unit_set = [unit_set ' + noise']; end
+    elseif option_only_good == 2; unit_set = 'Kilosort''s original good units (training set)';
+    else; unit_set = 'good units'; end
+    [parents, sessions] = fileparts(cellstr(all_dir));
+    is_sort = startsWith(sessions, 'kilosort'); % sort folder passed in: name it session + sort
+    [~, parents] = fileparts(parents);
+    sessions(is_sort) = strcat(cellstr(parents(is_sort)), {' '}, sessions(is_sort));
+    annotation('textbox', [0 0.93 1 0.04], 'String', sprintf('%s: GMM labels, %s (n = %d)', strjoin(cellstr(sessions), ', '), unit_set, numel(idx)), ...
+        'Interpreter', 'none', 'FontSize', 12, 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', 'EdgeColor', 'none')
     drawnow
 end
 

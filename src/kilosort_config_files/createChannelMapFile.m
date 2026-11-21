@@ -1,76 +1,35 @@
-%  create a channel map file for kilosort (not needed for spikeinterface, just for running direct in matlab)
+function createChannelMapFile(xlsx_file, out_file)
+% CREATECHANNELMAPFILE  Make a Kilosort channel map .mat from a probe map spreadsheet
+% (not needed for spikeinterface, just for running KS2 directly in matlab)
+%
+% Spreadsheet needs columns IntanChannel (0-indexed channel in the raw .dat),
+% ShankLetter, ShankPosition, xpos, ypos. If it also has shankPosition_1
+% (0-indexed virtual shank, e.g. front/back of the double-sided F probe treated
+% as separate shanks offset in x), that is used for kcoords instead of ShankLetter.
+%
+% Examples:
+%   createChannelMapFile('SILICON PROBE MAP H6.xlsx', 'H6.mat')
+%   createChannelMapFile('Z:\Meghana\probe maps\SILICON PROBE MAP F-D_12Shank1200Microns.xlsx', 'F_D_12shank.mat')
 
-% H6 probe
-T = readtable('SILICON PROBE MAP H6.xlsx');
+T = readtable(xlsx_file, 'VariableNamingRule', 'modify');
+has_virtual_shank = ismember('shankPosition_1', T.Properties.VariableNames);
 
-T = sortrows(sortrows(T,'ShankPosition'),'ShankLetter'); % Sort by shank & position
-% T([33:end],:) = []; %***Optionally remove unrecorded channels
-Nchannels = height(T);
+% Sort by shank & position
+if has_virtual_shank
+    T = sortrows(T, {'shankPosition_1', 'ShankPosition'});
+    kcoords = T.shankPosition_1 + 1;
+else
+    T = sortrows(sortrows(T, 'ShankPosition'), 'ShankLetter');
+    kcoords = cellfun(@(x) x-'A', T.ShankLetter) + 1; % grouping of channels (i.e. tetrode groups)
+end
+n_channels = height(T);
 
-
-xcoords   = T.xpos;
-ycoords   = T.ypos;
-kcoords   = cellfun(@(x) x-'A', T.ShankLetter)+1; % grouping of channels (i.e. tetrode groups)
-
+xcoords = T.xpos;
+ycoords = T.ypos;
 fs = 30000; % sampling frequency
-
-connected = true(Nchannels, 1); % Change if needed - but better to mask bad channels later
-xcoords = xcoords(connected);
-ycoords = ycoords(connected);
-kcoords = kcoords(connected);
-connected = connected(connected);
-
-chanMap   = T.IntanChannel+1;
+connected = true(n_channels, 1); % Change if needed - but better to mask bad channels later
+chanMap = T.IntanChannel + 1;
 chanMap0ind = chanMap - 1;
 
-% chanMap = chanMap(connected);
-% chanMap0ind = chanMap0ind(connected);
-
-save('H6.mat', ... 
-    'chanMap','connected', 'xcoords', 'ycoords', 'kcoords', 'chanMap0ind', 'fs')
-
-% %% Original examples
-% Nchannels = 32;
-% connected = true(Nchannels, 1);
-% chanMap   = 1:Nchannels;
-% chanMap0ind = chanMap - 1;
-% xcoords   = ones(Nchannels,1);
-% ycoords   = [1:Nchannels]';
-% kcoords   = ones(Nchannels,1); % grouping of channels (i.e. tetrode groups)
-% 
-% fs = 25000; % sampling frequency
-% save('C:\DATA\Spikes\20150601_chan32_4_900s\chanMap.mat', ...
-%     'chanMap','connected', 'xcoords', 'ycoords', 'kcoords', 'chanMap0ind', 'fs')
-% 
-% %%
-% 
-% Nchannels = 32;
-% connected = true(Nchannels, 1);
-% chanMap   = 1:Nchannels;
-% chanMap0ind = chanMap - 1;
-% 
-% xcoords   = repmat([1 2 3 4]', 1, Nchannels/4);
-% xcoords   = xcoords(:);
-% ycoords   = repmat(1:Nchannels/4, 4, 1);
-% ycoords   = ycoords(:);
-% kcoords   = ones(Nchannels,1); % grouping of channels (i.e. tetrode groups)
-% 
-% fs = 25000; % sampling frequency
-% 
-% save('C:\DATA\Spikes\Piroska\chanMap.mat', ...
-%     'chanMap','connected', 'xcoords', 'ycoords', 'kcoords', 'chanMap0ind', 'fs')
-% %%
-% 
-% % kcoords is used to forcefully restrict templates to channels in the same
-% % channel group. An option can be set in the master_file to allow a fraction 
-% % of all templates to span more channel groups, so that they can capture shared 
-% % noise across all channels. This option is
-% 
-% % ops.criterionNoiseChannels = 0.2; 
-% 
-% % if this number is less than 1, it will be treated as a fraction of the total number of clusters
-% 
-% % if this number is larger than 1, it will be treated as the "effective
-% % number" of channel groups at which to set the threshold. So if a template
-% % occupies more than this many channel groups, it will not be restricted to
-% % a single channel group. 
+save(out_file, 'chanMap', 'connected', 'xcoords', 'ycoords', 'kcoords', 'chanMap0ind', 'fs')
+fprintf('Saved %d-channel map to %s\n', n_channels, out_file)

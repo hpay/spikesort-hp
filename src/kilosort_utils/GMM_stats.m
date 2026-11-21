@@ -1,11 +1,14 @@
-function [stats, goodIDs, mxWF, tWF] = GMM_stats(all_dir, option_only_good)
-
+function [stats, goodIDs, mxWF, tWF, wf_shift, unit_labels] = GMM_stats(all_dir, option_only_good)
+% wf_shift: alignment shift (samples) from getSessionWaveforms(..., align=true); NaN if not aligned
+% unit_labels: each unit's current good/mua/noise label (wvStruct.goodLabels)
 
 if istable(all_dir)
     R = all_dir;
     meanRate = R.rate;
     mxWF = cell2mat([R.waveform]')';
     goodIDs = ones(size(meanRate));
+    wf_shift = NaN(size(meanRate));
+    unit_labels = repmat({''}, size(meanRate));
     fs = 1e6;
     tWF = ((0:size(mxWF,2)-1)/fs - 3.08e-4)*1e3;
 else
@@ -15,13 +18,23 @@ else
     meanRate = [];
     mxWF = []; % cat(1,theseWaveforms.mxWF);
     goodIDs = []; %cat(1,theseWaveforms.goodIDs);
-    
+    wf_shift = [];
+    unit_labels = {};
+
     for ii = 1:length(all_dir)
-        ks_dir = fullfile(all_dir{ii},'kilosort2_output');
+        ks_dir = all_dir{ii}; % a sort folder (name contains kilosort2/kilosort4), or a session folder containing kilosort2_output
+        [~, dir_name] = fileparts(ks_dir);
+        if ~contains(dir_name, 'kilosort'); ks_dir = fullfile(ks_dir, 'kilosort2_output'); end
         wvStruct = getfield(load(fullfile(ks_dir,'waveformStruct.mat')),'wvStruct');
         
         % Only keep "good" clusters. If sorted with Phy, this will be the final sorting
-        if ~isempty(option_only_good) && option_only_good
+        % option_only_good = 2: Kilosort's own "good" labels, before applyQualityMetrics/phy
+        if ~isempty(option_only_good) && option_only_good == 2
+            ks_label_file = fullfile(ks_dir, 'cluster_KSLabel_orig.tsv'); % saved by applyQualityMetrics
+            if ~isfile(ks_label_file); ks_label_file = fullfile(ks_dir, 'cluster_KSLabel.tsv'); end
+            T_ks = readtable(ks_label_file, 'FileType', 'text');
+            mask = ismember(wvStruct.goodIDs(:), T_ks.cluster_id(strcmp(T_ks.KSLabel, 'good')));
+        elseif ~isempty(option_only_good) && option_only_good
             mask = strcmp(wvStruct.goodLabels,'good');
         else
             mask = true(size(wvStruct.max_site));
@@ -30,7 +43,10 @@ else
         meanRate = cat(1, meanRate, wvStruct.meanRate(mask,:));
         mxWF = cat(1,mxWF, wvStruct.mxWF(mask,:));
         goodIDs = cat(1,goodIDs, wvStruct.goodIDs(mask(:)));
-        
+        if isfield(wvStruct, 'wf_shift'); shift_i = wvStruct.wf_shift(mask(:)); else; shift_i = NaN(nnz(mask),1); end
+        wf_shift = cat(1, wf_shift, shift_i);
+        unit_labels = cat(1, unit_labels, wvStruct.goodLabels(mask(:)));
+
     end
     
     fs = size(wvStruct.mxWF,2)/wvStruct.spkDur;

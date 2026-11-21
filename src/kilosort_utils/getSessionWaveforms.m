@@ -1,17 +1,39 @@
-function wvStruct = getSessionWaveforms(dataDir, ksDir, only_good)
+function wvStruct = getSessionWaveforms(dataDir, ksDir, only_good, raw, align)
+% align (optional, default false): shift each unit's waveforms (all channels) so the
+%   largest absolute extremum on the max channel, searched within the original window,
+%   lands at sample round(spkOffset*fs)+1 (where most troughs already sit). Extra data
+%   is extracted on both sides so the shifted window is filled with real data.
+%   wvStruct.wf_shift = shift in samples (positive = extremum was late).
+% raw (optional, for non-Intan data e.g. openEphys) struct with fields:
+%   fbinary  - full path to the int16 raw binary
+%   nCh      - total channels interleaved in the file (incl. ADC etc)
+%   fs       - sample rate
+%   chan_idx - 1-indexed ephys channels in the file to consider (e.g. 1:128).
+%              waveFormsMean is restricted to these; max_site is still the
+%              channel index in the raw file.
+% If raw is omitted, reads Intan info.rhd + amplifier.dat in dataDir.
+
 % params
 nWF = 1e3; % (HP modified from 1e3 to 1e2) % number of waveforms to get for each unit
 spkOffset = 1.5e-3; % (SC modified from 1e-3 to 1.5e-3); % seconds before spike time to get
 spkDur = 4e-3; % (s) total duration of waveform
 dt = 0.5/1e3; % time step for ccg binning, SC modified from 1ms to 0.5ms
 
-% Get raw data info for Intan recording
-h = readIntanInfo(fullfile(dataDir,'info.rhd'));
-nCh = h.num_h.amplifier_channels;
-fs = h.sample_rate;
+if exist('raw','var') && ~isempty(raw)
+    nCh = raw.nCh;
+    fs = raw.fs;
+    fDat = raw.fbinary;
+    chan_idx = raw.chan_idx(:)';
+else
+    % Get raw data info for Intan recording
+    h = readIntanInfo(fullfile(dataDir,'info.rhd'));
+    nCh = h.num_h.amplifier_channels;
+    fs = h.sample_rate;
+    fDat = fullfile(dataDir,'amplifier.dat');
+    chan_idx = 1:nCh;
+end
 
 % set up files
-fDat = fullfile(dataDir,'amplifier.dat');
 spkSamp = readNPY(fullfile(ksDir, 'spike_times.npy'));
 sID = readNPY(fullfile(ksDir,'spike_clusters.npy'));
 [unit_ID,cluster_labels] = getPhyClusterLabels(ksDir);
@@ -25,8 +47,17 @@ goodLabels = cluster_labels(ind(:));
 
 % prepare variables
 numUnits = length(goodIDs);
+fprintf('getSessionWaveforms: extracting mean waveforms for %d units from %s\n', numUnits, fDat);
 spkDurSamples = spkDur*fs; % total samples to pre-allocate for waveform
-waveFormsMean = nan(spkDurSamples,nCh,numUnits);
+if ~exist('align','var') || isempty(align); align = false; end
+if align
+    n_pad = round((spkDur - spkOffset)*fs); % covers any shift of an extremum inside the original window
+    i_target = round(spkOffset*fs) + 1;
+else
+    n_pad = 0;
+end
+wf_shift = zeros(numUnits,1);
+waveFormsMean = nan(spkDurSamples,numel(chan_idx),numUnits);
 meanRate = nan(numUnits,1);
 medISI = nan(numUnits,1);
 contam = nan(numUnits,1); % Why are we calculating contam here? HP
@@ -63,13 +94,21 @@ for thisUnit=1:numUnits
     spikeTimesRP = curSpikeTimes(randperm(curUnitnSpikes));
     spikeTimeKeeps = double(sort(spikeTimesRP(1:min([nWF curUnitnSpikes]))));
     
-    mean_wave_filt = getSpikeWaveform(mmf,spikeTimeKeeps, fs, spkOffset, spkDur);
-    waveFormsMean(:,:,thisUnit) = mean_wave_filt;
-    
-    % Get channel with largest amplitude, take that as the waveform
-    amps = max(mean_wave_filt)-min(mean_wave_filt);
-    [max_val,max_site(thisUnit)] = max(amps); % Max site is the Intan channel number, so 1 = A-000
-    mxWF(thisUnit,:) = waveFormsMean(:,max_site(thisUnit),thisUnit)';
+    mean_wave_filt = getSpikeWaveform(mmf,spikeTimeKeeps, fs, spkOffset + n_pad/fs, spkDur + 2*n_pad/fs);
+    mean_wave_filt = mean_wave_filt(:,chan_idx);
+    orig_win = n_pad + (1:spkDurSamples);
+
+    % Get channel with largest amplitude (in the original window), take that as the waveform
+    amps = max(mean_wave_filt(orig_win,:))-min(mean_wave_filt(orig_win,:));
+    [max_val,i_max] = max(amps);
+    if align
+        [~, i_ext] = max(abs(mean_wave_filt(orig_win,i_max)));
+        wf_shift(thisUnit) = i_ext - i_target;
+        orig_win = orig_win + wf_shift(thisUnit);
+    end
+    waveFormsMean(:,:,thisUnit) = mean_wave_filt(orig_win,:);
+    max_site(thisUnit) = chan_idx(i_max); % Max site is the raw file channel number, so 1 = Intan A-000 / openEphys CH1
+    mxWF(thisUnit,:) = waveFormsMean(:,i_max,thisUnit)';
     
     %         K((length(K)+1)/2) = 0;
     %         figure; subplot(2,2,1); plot(K); subplot(2,2,2); plot(Qi); title('Qi'); subplot(2,2,3); plot(Ri); title('Ri')
@@ -94,4 +133,5 @@ end
 wvStruct = struct('mxWF',mxWF,'max_site',max_site,'pcWF',pcWF,'meanRate',meanRate,...
     'waveFormsMean',waveFormsMean,'spkDur',spkDur,'spkOffset',spkOffset,'goodIDs',goodIDs,...
     'goodLabels',{goodLabels},'medISI',medISI,'contam',contam,'nSpikes',nSpikes);
+if align; wvStruct.wf_shift = wf_shift; end
 end

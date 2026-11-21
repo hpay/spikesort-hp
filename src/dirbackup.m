@@ -36,6 +36,9 @@ if (nargin < 3)
     runmode = 0;
 end
 
+% Pass exceptions on to subdirectories
+if exist('exceptions','var'); exc = {exceptions}; else; exc = {}; end
+
 % Make new folder in backup directory if needed
 if ~exist(s2, 'dir'); mkdir(s2); end
 
@@ -101,7 +104,7 @@ while (n1 <= nfiles1 && n2 <= nfiles2)
         % Current files have same name (ignoring case) ...
         if (file1(n1).isdir + file2(n2).isdir == 2)
             % Both files are directories. Call this function (recursive) ...
-            dirbackup([s1, '\', file1(n1).name], [s2, '\', file2(n2).name], runmode);
+            dirbackup([s1, '\', file1(n1).name], [s2, '\', file2(n2).name], runmode, exc{:});
         elseif (file2(n2).isdir + file1(n1).isdir == 1)
             % One file is a directory, while the other is not ...
             error('Target directories contain a file ''%s'' and directory ''%s''', file1(n1).name, file2(n2).name);
@@ -122,7 +125,7 @@ while (n1 <= nfiles1 && n2 <= nfiles2)
         if (pos(1) == 1)
             % The file in s1 is higher up the alphabetic rank. Copy
             % file from s1 to s2 ...
-            loc_copy(s1, file1(n1), s2, file1(n1), runmode);
+            loc_copy(s1, file1(n1), s2, file1(n1), runmode, exc{:});
             % Continue to next file in s1 ...
             n1 = n1 + 1;
         else
@@ -153,7 +156,7 @@ if (n1 > nfiles1)
 elseif (n2 > nfiles2)
     % Remaining files in s1 not present in s2. Copy the files to s2 ...
     for n1 = n1:nfiles1
-        loc_copy(s1, file1(n1), s2, file1(n1), runmode);
+        loc_copy(s1, file1(n1), s2, file1(n1), runmode, exc{:});
     end
     n1 = n1 + 1;
 end
@@ -198,9 +201,19 @@ else
 end
 
 % Local copy function ...
-function loc_copy(srcdir, srcfile, tgtdir, tgtfile, runmode)
+function loc_copy(srcdir, srcfile, tgtdir, tgtfile, runmode, exceptions)
 source = [srcdir, '\', srcfile.name];
 target = tgtdir;
+% With exceptions, recurse into new directories so excluded files inside them are skipped
+if srcfile.isdir && exist('exceptions','var')
+    if runmode >= 0; mkdir(target, srcfile.name); end
+    if exist(fullfile(target, srcfile.name), 'dir')
+        dirbackup(source, fullfile(target, srcfile.name), runmode, exceptions);
+    else
+        fprintf('%s ... [WOULD CREATE + RECURSE]\n', fullfile(target, srcfile.name));
+    end
+    return
+end
 % Directories are a bit tricky to copy properly without errors occurring
 % and/or DOS waiting for user input (without a message in the matlab
 % console). The following code has been tested and worked under various

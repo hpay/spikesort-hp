@@ -1,5 +1,8 @@
 % LOAD IN SORTED EPHYS DIRECTORIES FROM BIRD MASTER FOLDER
-function [gm, idx,labels] = GMM_make(all_dir, option_only_good, n_clusters)
+function [gm, idx,labels] = GMM_make(all_dir, option_only_good, n_clusters, label_by)
+% label_by: how clusters are named E vs I (default 'rate')
+%   'rate'  = lower mean log rate is E (original)
+%   'width' = wider mean trough-to-peak duration is E (narrow-spiking = I)
 % idx:
 %   1 = ind_exc
 %   2 = ind_inh
@@ -8,6 +11,12 @@ function [gm, idx,labels] = GMM_make(all_dir, option_only_good, n_clusters)
 
 %% Get waveforms from each session
 [stats, goodIDs, mxWF, tWF] = GMM_stats(all_dir, option_only_good);
+
+% Train only on negative-trough units: trough features don't apply when the peak is bigger
+% (GMM_apply labels those units unknown)
+pos_peak = max(mxWF,[],2) > abs(min(mxWF,[],2));
+fprintf('GMM_make: excluding %d of %d units with peak > trough from training\n', nnz(pos_peak), numel(pos_peak))
+stats = stats(~pos_peak,:);
 
 % Exclude very low rate cells from the template creation
 % meanRateThresh = 0.05;  % min rate threshold
@@ -27,7 +36,12 @@ gm = fitgmdist(X,n_clusters,'CovarianceType','diagonal','Replicates',25); %
 
 % Identify clusters
 mus = array2table(gm.mu); mus.Properties.VariableNames = stats.Properties.VariableNames;
-[~, order] = sort(mus.rate_log10);
+if ~exist('label_by','var') || isempty(label_by); label_by = 'rate'; end
+switch label_by
+    case 'rate';  [~, order] = sort(mus.rate_log10);           % E first = lowest rate
+    case 'width'; [~, order] = sort(mus.duration, 'descend');  % E first = widest spike
+    otherwise; error('label_by must be ''rate'' or ''width''')
+end
 sigmas = array2table(squeeze(gm.Sigma)'); sigmas.Properties.VariableNames = stats.Properties.VariableNames;
 sigmas_test = table2array(sigmas(:,{'rate_log10','duration'}));
 

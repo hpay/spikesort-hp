@@ -1,5 +1,8 @@
-function plotGMMresults(tWF, mxWF, stats, id_text, good_all, session_all, Ranatomy, channel_all, unitID_all)
+function plotGMMresults(tWF, mxWF, stats, id_text, good_all, session_all, Ranatomy, channel_all, unitID_all, malpha, marker_line_width)
 %% Plot results
+% malpha: scatter marker edge alpha (default 0.5); marker_line_width: marker edge width (default 0.5)
+if ~exist('malpha','var') || isempty(malpha); malpha = .5; end
+if ~exist('marker_line_width','var') || isempty(marker_line_width); marker_line_width = .5; end
 
 
 % TODO: change and id where "good" label = noise to unknown
@@ -27,13 +30,16 @@ mxWFnorm = mxWF./-min(mxWF,[],2);
 
 figure;
 msize  = 5;
-malpha = .5;
 mask = mask_singleunit & ~(mask_E|mask_I) & mask_ds;
-scatter3(stats.duration(mask)/fs*1e3, stats.asymmetry(mask),10.^stats.rate_log10(mask),msize,cNS,'MarkerEdgeAlpha',malpha); hold on
+h_ns = scatter3(stats.duration(mask)/fs*1e3, stats.asymmetry(mask),10.^stats.rate_log10(mask),msize,cNS,'MarkerEdgeAlpha',malpha,'LineWidth',marker_line_width); hold on
+n_ns = nnz(mask);
 mask = mask_singleunit & mask_E & mask_ds;
-scatter3(stats.duration(mask)/fs*1e3, stats.asymmetry(mask),10.^stats.rate_log10(mask),msize,cE,'MarkerEdgeAlpha',malpha); hold on
+h_e = scatter3(stats.duration(mask)/fs*1e3, stats.asymmetry(mask),10.^stats.rate_log10(mask),msize,cE,'MarkerEdgeAlpha',malpha,'LineWidth',marker_line_width); hold on
+n_e = nnz(mask);
 mask = mask_singleunit & mask_I & mask_ds;
-scatter3(stats.duration(mask)/fs*1e3, stats.asymmetry(mask),10.^stats.rate_log10(mask),msize,cI,'MarkerEdgeAlpha',malpha); hold on
+h_i = scatter3(stats.duration(mask)/fs*1e3, stats.asymmetry(mask),10.^stats.rate_log10(mask),msize,cI,'MarkerEdgeAlpha',malpha,'LineWidth',marker_line_width); hold on
+legend([h_e h_i h_ns], {sprintf('E (n = %d)', n_e), sprintf('I (n = %d)', nnz(mask)), ...
+    sprintf('intermediate / moderate outlier (n = %d)', n_ns)}, 'Location', 'northeast', 'Box', 'off')
 xlabel('Duration tr-pk(ms)'); ylabel('Asymmetry'); zlabel('Firing rate (Hz)')
 set(gca,'ZScale','log')
 xlim([0  1]); ylim([-1 1]); zlim(10.^[-2.2 1.8]); 

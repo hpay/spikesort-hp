@@ -1,9 +1,11 @@
 %% Function to do sorting that takes in root data directory and options
 function rez = runSingleKilosort(rootDir, saveDir, ops)
 
-% find the binary file
-fprintf('Looking for data inside %s \n', rootDir)
-ops.fbinary = fullfile(rootDir, 'amplifier.dat'); % the raw data binary file is in this folder
+% find the binary file (Intan default: amplifier.dat; set ops.fbinary to use another file, e.g. openEphys continuous.dat)
+if ~isfield(ops, 'fbinary') || isempty(ops.fbinary)
+    ops.fbinary = fullfile(rootDir, 'amplifier.dat'); % the raw data binary file is in this folder
+end
+fprintf('Reading data from %s \n', ops.fbinary)
 
 % run main algo
 rez = preprocessDataSub(ops);    % preprocess data to create temp_wh.dat

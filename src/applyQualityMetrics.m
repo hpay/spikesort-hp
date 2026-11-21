@@ -10,6 +10,12 @@ min_spikes_mua = 20;  % Label units with less than N spikes as noise
 % Find the KS directory
 disp(ks_dir)
 
+% Never relabel a phy-curated session (phy writes cluster_info.tsv when curation is saved)
+if isfile(fullfile(ks_dir, 'cluster_info.tsv'))
+    warning('%s has been curated in phy (cluster_info.tsv exists); not applying quality metrics', ks_dir)
+    return
+end
+
 % Get the contam percents calculated in getSessionWaveforms
 wvStruct = getfield(load(fullfile(ks_dir, 'waveformStruct.mat')), 'wvStruct');
 gm_result = load(fullfile(ks_dir,'gmm_result.mat'));

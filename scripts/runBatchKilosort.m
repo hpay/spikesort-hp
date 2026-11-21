@@ -23,11 +23,12 @@ overwrite_gmm = 0;
 
 % Data folder
 data_dir_local = 'D:\data';  % faster to process on locally saved files
-data_dir_remote = 'Z:\Hannah\Ephys\Project2'; % Location to backup to
+data_dir_local = 'Z:\Hannah\Ephys\Project2'; % Location to backup to
+data_dir_remote = 'E:\ephys\project2';
 
 %% Set up
 
-% Only process data that is actually present!
+% Only process data that is actually used + present
 fnames = dir(data_dir_local);
 fnames = {fnames.name};
 Tlocal = Tall(ismember(Tall.filename, fnames),:);
@@ -52,6 +53,7 @@ addpath(results_dir);
 
 %% Backup from local SSD to server
 exceptions = {'kilosort2_output','\.avi$','raw*'}; % Back this up specifically later
+exceptions = {'kilosort2_output','\.avi$'}; % Back this up specifically later
 runmode = 2; % Don't delete anything!
 for ii = 1:height(Tlocal)
     fprintf('\n%s\n',Tlocal.filename{ii})
@@ -63,6 +65,7 @@ end
 
 %% Backup from server to local!
 exceptions = {'kilosort2_output','\.avi$','raw*'}; % Back this up specifically later
+exceptions = {'kilosort2_output','\.avi$'}; % Back this up specifically later
 runmode = 2; % Don't delete anything!
 for ii = 1:height(Tlocal)
     fprintf('\n%s\n',Tlocal.filename{ii})

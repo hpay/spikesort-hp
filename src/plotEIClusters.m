@@ -1,9 +1,11 @@
-function plotEIClusters(T, data_dir, ks_dir_fun)
+function plotEIClusters(T, data_dir, ks_dir_fun, get_anatomy, marker_alpha, marker_line_width)
 %
 % Inputs:
 %   T - A table containing session metadata (e.g., filenames, inclusion criteria).
 %   data_dir - A string specifying the root directory where data files are stored.
 %   ks_dir_fun - A function handle that constructs the path to the Kilosort output directory for each session.
+%   get_anatomy - (optional, default true) false skips getAnatomy (project2 repo), e.g. for sessions not in RECORDING_EPHYS.xlsx
+%   marker_alpha, marker_line_width - (optional, default 0.5 each) scatter marker edge alpha and width
 %
 % Outputs:
 %   Generates a plot displaying cluster analysis results, including waveform data and GMM clustering results.
@@ -37,7 +39,13 @@ end
 nt = size(wvstruct_curr.mxWF,2);
 dt = wvstruct_curr.spkDur/nt;
 tWF = -wvstruct_curr.spkOffset + (0:nt-1)*dt;
-Ranatomy = getAnatomy(session_all, channel_all, T); % Store AP/ML/DV info
+if ~exist('get_anatomy','var') || get_anatomy
+    Ranatomy = getAnatomy(session_all, channel_all, T); % Store AP/ML/DV info
+else
+    Ranatomy = []; % only used in commented-out code in plotGMMresults
+end
  
-plotGMMresults(tWF, wv_all, stats_all, id_all, good_all, session_all, Ranatomy, channel_all, unitID_all)
+if ~exist('marker_alpha','var'); marker_alpha = []; end
+if ~exist('marker_line_width','var'); marker_line_width = []; end
+plotGMMresults(tWF, wv_all, stats_all, id_all, good_all, session_all, Ranatomy, channel_all, unitID_all, marker_alpha, marker_line_width)
 drawnow
