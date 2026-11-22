@@ -32,4 +32,8 @@ chanMap = T.IntanChannel + 1;
 chanMap0ind = chanMap - 1;
 
 save(out_file, 'chanMap', 'connected', 'xcoords', 'ycoords', 'kcoords', 'chanMap0ind', 'fs')
+if ismember('Back_Front', T.Properties.VariableNames) % double-sided probe: physical shank letter and side
+    shank_letter = char(T.ShankLetter); side = char(T.Back_Front);
+    save(out_file, 'shank_letter', 'side', '-append')
+end
 fprintf('Saved %d-channel map to %s\n', n_channels, out_file)

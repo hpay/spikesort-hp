@@ -1,4 +1,4 @@
-function wvStruct = getSessionWaveforms(dataDir, ksDir, only_good, raw, align)
+function wvStruct = getSessionWaveforms(dataDir, ksDir, only_good, raw, align, hp_pass)
 % align (optional, default false): shift each unit's waveforms (all channels) so the
 %   largest absolute extremum on the max channel, searched within the original window,
 %   lands at sample round(spkOffset*fs)+1 (where most troughs already sit). Extra data
@@ -12,6 +12,7 @@ function wvStruct = getSessionWaveforms(dataDir, ksDir, only_good, raw, align)
 %              waveFormsMean is restricted to these; max_site is still the
 %              channel index in the raw file.
 % If raw is omitted, reads Intan info.rhd + amplifier.dat in dataDir.
+% hp_pass (optional): waveform high-pass cutoff (Hz), default 300 (see getSpikeWaveform)
 
 % params
 nWF = 1e3; % (HP modified from 1e3 to 1e2) % number of waveforms to get for each unit
@@ -89,12 +90,14 @@ for thisUnit=1:numUnits
     % Exclude spikes whos waveform extends beyond recording
     curSpikeTimes((curSpikeTimes+spkDur*10)*fs > nSamp) = []; % spikes extending past recording
     curSpikeTimes((curSpikeTimes-spkOffset*10)*fs < 1) = []; % spikes starting before recording
-    curUnitnSpikes = size(curSpikeTimes,1);
-    
+    curUnitnSpikes = numel(curSpikeTimes); % numel: a 1-spike unit becomes a 1x0 row once its spike is removed
+    if curUnitnSpikes == 0; continue; end % all spikes too close to the recording edges (waveform stays NaN)
+
     spikeTimesRP = curSpikeTimes(randperm(curUnitnSpikes));
     spikeTimeKeeps = double(sort(spikeTimesRP(1:min([nWF curUnitnSpikes]))));
     
-    mean_wave_filt = getSpikeWaveform(mmf,spikeTimeKeeps, fs, spkOffset + n_pad/fs, spkDur + 2*n_pad/fs);
+    if ~exist('hp_pass', 'var'); hp_pass = []; end   % high-pass cutoff (Hz); [] = getSpikeWaveform's default, 300
+    mean_wave_filt = getSpikeWaveform(mmf,spikeTimeKeeps, fs, spkOffset + n_pad/fs, spkDur + 2*n_pad/fs, hp_pass);
     mean_wave_filt = mean_wave_filt(:,chan_idx);
     orig_win = n_pad + (1:spkDurSamples);
 

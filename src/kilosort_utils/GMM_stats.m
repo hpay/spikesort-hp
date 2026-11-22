@@ -1,6 +1,30 @@
-function [stats, goodIDs, mxWF, tWF, wf_shift, unit_labels] = GMM_stats(all_dir, option_only_good)
+function [stats, goodIDs, mxWF, tWF, wf_shift, unit_labels, basis] = GMM_stats(all_dir, option_only_good, stat_set, basis)
 % wf_shift: alignment shift (samples) from getSessionWaveforms(..., align=true); NaN if not aligned
 % unit_labels: each unit's current good/mua/noise label (wvStruct.goodLabels)
+% option_only_good: 0/[] all units, 1 good, 2 Kilosort's original good, or a cell array of labels to
+%   keep, e.g. {'good','mua'}
+% stat_set: 'trough' (default) = rate_log10, duration, asymmetry, pk_deriv (trough-based, for E/I)
+%   'waveform' = whole-waveform features that also work for positive-going units:
+%       wf_pc1..6: PCs of the peak-channel mean waveform, aligned on its largest |extremum| and
+%           divided by that |extremum| (sign kept). The basis is fit on the above-median-amplitude
+%           units unless one is passed in (basis, as returned here).
+%       rate_log10
+%       acg_pc1..3: PCs of the autocorrelogram (log-spaced bins 1-500 ms; log10 of the ratio to a Poisson
+%           process at the unit's rate, +0.1). A basis passed in keeps its own bins and offset (some
+%           older models: 0.5-500 ms or 3-500 ms with +0.5).
+%       spread: mean peak-to-peak amplitude of channels 25-60 um from the peak channel, as a
+%           fraction of the peak channel's (spatial fall-off)
+%       All 11 are z-scored (mean and SD stored in basis).
+% basis: waveform and ACG PCA bases ('waveform' only), to score other units the same way
+if ~exist('stat_set', 'var') || isempty(stat_set); stat_set = 'trough'; end
+is_wf = strcmp(stat_set, 'waveform');
+acg_edges = logspace(log10(1e-3), log10(0.5), 31); % s
+acg_offset = 0.1;
+if exist('basis', 'var') && ~isempty(basis)       % score with the bins and offset the basis was fit with
+    acg_edges = basis.acg_edges;
+    if isfield(basis, 'acg_offset'); acg_offset = basis.acg_offset; else; acg_offset = 0.1; end
+end
+acg = []; spread = [];
 
 if istable(all_dir)
     R = all_dir;
@@ -12,9 +36,9 @@ if istable(all_dir)
     fs = 1e6;
     tWF = ((0:size(mxWF,2)-1)/fs - 3.08e-4)*1e3;
 else
-    
+
     if ~iscell(all_dir); all_dir = {all_dir}; end
-    
+
     meanRate = [];
     mxWF = []; % cat(1,theseWaveforms.mxWF);
     goodIDs = []; %cat(1,theseWaveforms.goodIDs);
@@ -26,10 +50,12 @@ else
         [~, dir_name] = fileparts(ks_dir);
         if ~contains(dir_name, 'kilosort'); ks_dir = fullfile(ks_dir, 'kilosort2_output'); end
         wvStruct = getfield(load(fullfile(ks_dir,'waveformStruct.mat')),'wvStruct');
-        
+
         % Only keep "good" clusters. If sorted with Phy, this will be the final sorting
         % option_only_good = 2: Kilosort's own "good" labels, before applyQualityMetrics/phy
-        if ~isempty(option_only_good) && option_only_good == 2
+        if iscell(option_only_good)
+            mask = ismember(wvStruct.goodLabels(:), option_only_good);
+        elseif ~isempty(option_only_good) && option_only_good == 2
             ks_label_file = fullfile(ks_dir, 'cluster_KSLabel_orig.tsv'); % saved by applyQualityMetrics
             if ~isfile(ks_label_file); ks_label_file = fullfile(ks_dir, 'cluster_KSLabel.tsv'); end
             T_ks = readtable(ks_label_file, 'FileType', 'text');
@@ -39,7 +65,8 @@ else
         else
             mask = true(size(wvStruct.max_site));
         end
-        
+        if is_wf; mask = mask(:) & ~any(isnan(wvStruct.mxWF), 2); end % units with no waveform
+
         meanRate = cat(1, meanRate, wvStruct.meanRate(mask,:));
         mxWF = cat(1,mxWF, wvStruct.mxWF(mask,:));
         goodIDs = cat(1,goodIDs, wvStruct.goodIDs(mask(:)));
@@ -47,14 +74,55 @@ else
         wf_shift = cat(1, wf_shift, shift_i);
         unit_labels = cat(1, unit_labels, wvStruct.goodLabels(mask(:)));
 
+        if is_wf % autocorrelograms and spatial spread
+            fs_spk = size(wvStruct.mxWF, 2) / wvStruct.spkDur;
+            spike_times = double(readNPY(fullfile(ks_dir, 'spike_times.npy'))) / fs_spk;
+            spike_clusters = readNPY(fullfile(ks_dir, 'spike_clusters.npy'));
+            % waveFormsMean columns are the sorted raw channels Kilosort used (bad ones excluded)
+            [chan_idx, order] = sort(double(readNPY(fullfile(ks_dir, 'channel_map.npy'))) + 1);
+            pos = readNPY(fullfile(ks_dir, 'channel_positions.npy')); pos = pos(order, :);
+            for u = find(mask(:))'
+                t = sort(spike_times(spike_clusters == wvStruct.goodIDs(u)));
+                acg_u = autocorrelogram(t, acg_edges) ./ (numel(t) * wvStruct.meanRate(u) * diff(acg_edges));
+                acg = cat(1, acg, log10(acg_u + acg_offset));
+                ptp = max(wvStruct.waveFormsMean(:, :, u)) - min(wvStruct.waveFormsMean(:, :, u));
+                i_peak = find(chan_idx == wvStruct.max_site(u));
+                dist = vecnorm(pos - pos(i_peak, :), 2, 2);
+                spread = cat(1, spread, mean(ptp(dist >= 25 & dist <= 60)) / ptp(i_peak));
+            end
+        end
     end
-    
+
     fs = size(wvStruct.mxWF,2)/wvStruct.spkDur;
-    
+
     tWF = linspace(-wvStruct(1).spkOffset,-wvStruct(1).spkOffset+wvStruct(1).spkDur,...
         fs*wvStruct(1).spkDur);
-    
+
 end
+
+if is_wf
+    %% Whole-waveform stats
+    w = mxWF - median(mxWF(:, 1:10), 2);              % baseline from the first 0.33 ms
+    amp = max(abs(w), [], 2);
+    w_norm = w ./ amp;                                % largest extremum = +1 or -1
+    new_basis = ~exist('basis', 'var') || isempty(basis);
+    if new_basis
+        fit_set = amp > median(amp);
+        [basis.wf_coeff, ~, ~, ~, basis.wf_explained, basis.wf_mu] = pca(w_norm(fit_set, :), 'NumComponents', 6);
+        [basis.acg_coeff, ~, ~, ~, basis.acg_explained, basis.acg_mu] = pca(acg, 'NumComponents', 3);
+    end
+    wf_pcs = (w_norm - basis.wf_mu) * basis.wf_coeff;
+    acg_pcs = (acg - basis.acg_mu) * basis.acg_coeff;
+    X = [wf_pcs, log10(meanRate), acg_pcs, spread];
+    if new_basis; basis.feat_mu = mean(X, 'omitnan'); basis.feat_sd = std(X, 'omitnan'); end
+    X = (X - basis.feat_mu) ./ basis.feat_sd;          % z-scored, so each feature starts on the same scale
+    stats = array2table(X, 'VariableNames', [compose('wf_pc%d', 1:size(wf_pcs, 2)), {'rate_log10'}, ...
+        compose('acg_pc%d', 1:size(acg_pcs, 2)), {'spread'}]);
+    basis.acg_edges = acg_edges; basis.acg_offset = acg_offset;
+    basis.acg = acg; basis.w_norm = w_norm;           % per-unit curves, for plotting
+    return
+end
+basis = [];
 
 %% Compute stats
 mxWF_d = diff(mxWF')';
@@ -63,18 +131,18 @@ stats = array2table(NaN(numUnits,4)); stats.Properties.VariableNames = {'rate_lo
 for nUnit = 1:numUnits
     % get trough
     [tr, trInd] = min(mxWF(nUnit,:));
-    
+
     % get peak (after trough)
     [pk, pkInd] = max(mxWF(nUnit, trInd:end));
     pkInd = pkInd + trInd - 1;
-    
+
     % get pre-peak (before trough)
     pk_pre = max(mxWF(nUnit, 1:trInd));
-    
+
     % get derivative trough and peak
     [tr_d,trInd_d] = min(mxWF_d(nUnit,:));
     [pk_d,pkInd_d] = max(mxWF_d(nUnit,:));
-    
+
     % concatenate the following statS
     stats.rate_log10(nUnit) = log10(meanRate(nUnit));
     stats.duration(nUnit) =  pkInd-trInd;               % duration
@@ -83,4 +151,14 @@ for nUnit = 1:numUnits
 end
 
 
+end
+
+function counts = autocorrelogram(t, edges)
+% Spike counts at positive lags (s) in each bin; t sorted
+counts = zeros(1, numel(edges) - 1);
+for k = 1:numel(t) - 1
+    lag = t(1 + k:end) - t(1:end - k);
+    if ~any(lag < edges(end)); break; end
+    counts = counts + histcounts(lag, edges);
+end
 end

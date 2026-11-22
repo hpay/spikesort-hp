@@ -3,9 +3,9 @@ function applyQualityMetrics(ks_dir)
 % Make sure to record if manually sorted in the excel table!!!
 
 max_contam_good = 0.10;
-max_contam_mua = 1;
+max_contam_mua = 1;   % trough GMM labels only (see below)
 min_spikes_good = 50; % Label units with less than N spikes as mua
-min_spikes_mua = 20;  % Label units with less than N spikes as noise
+min_spikes_mua = 20;  % trough GMM labels only: less than N spikes = noise
 
 % Find the KS directory
 disp(ks_dir)
@@ -18,7 +18,7 @@ end
 
 % Get the contam percents calculated in getSessionWaveforms
 wvStruct = getfield(load(fullfile(ks_dir, 'waveformStruct.mat')), 'wvStruct');
-gm_result = load(fullfile(ks_dir,'gmm_result.mat'));
+gm_result = load(fullfile(ks_dir,'gmm_result.mat')); % labels: cell type of each unit (E / I / nonsomatic / noise), from step 6
 
 % Delete old phy log files -- will interfere with update of these labels
 if exist(fullfile(ks_dir,'phy.log'),'file')
@@ -26,6 +26,7 @@ if exist(fullfile(ks_dir,'phy.log'),'file')
     keyboard
     rmdir(fullfile(ks_dir,'.phy'),'s')
     delete(fullfile(ks_dir,'phy.log'))
+
 end
 
 % Copy original files
@@ -40,19 +41,27 @@ cluster_id = T_cluster_ContamPct_old.cluster_id;
 T_cluster_KSLabel_old = readtable(fullfile(ks_dir, 'cluster_KSLabel_orig.tsv'),'FileType','Text');
 mask_good_orig = strcmp(T_cluster_KSLabel_old.KSLabel,'good');
 
-% Label units according to contamination
-mask_noise = wvStruct.contam>max_contam_mua | wvStruct.nSpikes<min_spikes_mua;
-mask_good = ~mask_noise & (wvStruct.contam<max_contam_good & ~isnan(wvStruct.contam) & wvStruct.nSpikes>min_spikes_good);
+% Good: low contamination and enough spikes
+mask_good = wvStruct.contam(:)<max_contam_good & ~isnan(wvStruct.contam(:)) & wvStruct.nSpikes(:)>min_spikes_good;
 
-% NEW: check if a waveform is high on every channel
+% Not good if the waveform is high on every channel
 max_all = squeeze(max(wvStruct.waveFormsMean,[],1));
 max_range = (max(max_all) - min(max_all))./max(max_all);
 max_range_threshold = 0.5;
 mask_artifact = max_range(:)<max_range_threshold;
 
-% Label units according to GMM - edit to never move a cell from mua to "good"
-mask_good = mask_good & ismember(gm_result.labels,{'E','I','intermediate','moderate_outlier','unknown'}) & ~mask_artifact & mask_good_orig;
-mask_noise = mask_noise | ismember(gm_result.labels,{'extreme_outlier'}) | mask_artifact;
+if isfield(gm_result, 'cell_type_model')
+    % Cell type model (openEphys pipeline, step 6) decides noise: units typed noise are noise; E, I and
+    % nonsomatic units are good (if they pass the checks above and Kilosort called them good) or mua
+    mask_good = mask_good & ismember(gm_result.labels(:),{'E','I','nonsomatic'}) & ~mask_artifact & mask_good_orig;
+    mask_noise = strcmp(gm_result.labels(:),'noise');
+else
+    % Trough GMM labels (Intan pipeline): noise from contamination, spike count, outliers and artifacts.
+    % Never moves a unit from mua to good.
+    mask_noise = wvStruct.contam(:)>max_contam_mua | wvStruct.nSpikes(:)<min_spikes_mua;
+    mask_good = mask_good & ~mask_noise & ismember(gm_result.labels(:),{'E','I','intermediate','moderate_outlier','unknown'}) & ~mask_artifact & mask_good_orig;
+    mask_noise = mask_noise | ismember(gm_result.labels(:),{'extreme_outlier'}) | mask_artifact;
+end
 mask_mua = ~mask_noise & ~mask_good;
 if nnz(mask_mua)+nnz(mask_good)+nnz(mask_noise) ~= length(mask_noise); error('check masks'); end
 

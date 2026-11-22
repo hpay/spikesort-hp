@@ -1,33 +1,31 @@
-function [mean_wave_filt, twave] = getSpikeWaveform(memMap, tspike, Fs,offset_t_final, duration_t_final)
+function [mean_wave_filt, twave] = getSpikeWaveform(memMap, tspike, Fs,offset_t_final, duration_t_final, hp_pass)
 % Inputs
 % memMap: raw file
 % tspike: spike times
 % Fs: samplerate
 % offset_t_final: (s)
 % duration_t_final: (s)
+% hp_pass (optional): high-pass cutoff (Hz), default 300
 %
 % Outputs
-% mean_wave_filt: average filtered waveform 
+% mean_wave_filt: average filtered waveform
 % twave: timestamps for mean_wave_filt
+%
+% Filtering: 3rd-order Butterworth high-pass at 300 Hz (Kilosort 4's filter) and 3rd-order Butterworth
+% low-pass at 5 kHz, both forward and backward (zero phase), with 5 ms of padding on each side. Replaced a 100-tap equiripple FIR high-pass
+% (passband from 800 Hz) whose end taps added a small bump ~1.6 ms from the spike.
 
 nCh = memMap.Format{2}(1);
 
-% High pass filter for spikes
-Nhp   = 100;  % Order
-Fstop = 10;   % Stopband Frequency
-Fpass = 800;  % Passband Frequency
-b_highpass = firpm(Nhp, [0 Fstop Fpass Fs/2]/(Fs/2), [0 0 1 1]);
-
-% Low pass filter for spikes
-Nlp   = 20;   % Order
-Fpass = 5000; % Passband Frequency
-Fstop = 10000;% Stopband Frequency
-b_lowpass = firpm(Nlp, [0 Fpass Fstop Fs/2]/(Fs/2), [1 1 0 0]);
+hp_cut = 300; if exist('hp_pass', 'var') && ~isempty(hp_pass); hp_cut = hp_pass; end
+lp_cut = 5000;
+[b_hp, a_hp] = butter(3, hp_cut/(Fs/2), 'high');
+[b_lp, a_lp] = butter(3, lp_cut/(Fs/2), 'low');
 
 % Get the spike waveform
 duration_ind_final = round(Fs*duration_t_final);
 offset_ind_final = round(Fs*offset_t_final);
-duration_ind_initial =  duration_ind_final*2 + (length(b_highpass)+length(b_lowpass))*3; % make sure spike waveform is not affected by the filter
+duration_ind_initial =  duration_ind_final*2 + 2*round(0.005*Fs); % 5 ms extra on each side so the filters settle before the cropped window (changes the kept window by <0.01%)
 offset_ind_initial = round(duration_ind_initial/2);
 start_ind = round(Fs*tspike);
 start_ind(start_ind<duration_ind_initial) = [];
@@ -44,7 +42,7 @@ fclose(fid);
 mean_wave = (wave_sum / numel(start_ind))';
 
 % Filter the average waveform
-mean_wave_filt = filtfilt(b_lowpass,1, filtfilt(b_highpass,1, mean_wave));
+mean_wave_filt = filtfilt(b_lp, a_lp, filtfilt(b_hp, a_hp, mean_wave));
 
 % % Upsample (for more precise estimate of duration?)
 % us = 10;
