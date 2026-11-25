@@ -49,7 +49,7 @@ if ~exist(fullfile(results_dir, gmm_name),'file') || overwrite_gmm
     T_load = T(strcmp(T.manually_sorted,'yes'),:);
     option_only_good = 1;
     n_clusters = 2;
-    gm = GMM_make(cellfun(@(x) fullfile(data_dir, x), T_load.filename,'Uni',0), option_only_good, n_clusters);
+    gm = makeCellTypeModel(cellfun(@(x) fullfile(data_dir, x), T_load.filename,'Uni',0), option_only_good, n_clusters);
     save(fullfile(results_dir, gmm_name),'gm','T')
 end
 
@@ -64,7 +64,7 @@ for ii = height(T):-1:1
 
     if ~exist(fullfile(ks_dir,'gmm_result.mat'),'file') || overwrite_gmm
         disp(T.filename{ii})
-        [id,labels, stats] = GMM_apply(gm, fullfile(data_dir, T.filename{ii}), option_only_good, plot_on);
+        [id,labels, stats] = applyCellTypeModel(gm, fullfile(data_dir, T.filename{ii}), option_only_good, plot_on);
         save(fullfile(ks_dir,'gmm_result.mat'),'id','labels','stats')
         
         wvStruct = getfield(load(fullfile(ks_dir, 'waveformStruct.mat')), 'wvStruct');

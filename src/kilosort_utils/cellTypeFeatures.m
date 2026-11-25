@@ -1,4 +1,4 @@
-function [stats, goodIDs, mxWF, tWF, wf_shift, unit_labels, basis] = GMM_stats(all_dir, option_only_good, stat_set, basis)
+function [stats, goodIDs, mxWF, tWF, wf_shift, unit_labels, basis] = cellTypeFeatures(all_dir, option_only_good, stat_set, basis)
 % wf_shift: alignment shift (samples) from getSessionWaveforms(..., align=true); NaN if not aligned
 % unit_labels: each unit's current good/mua/noise label (wvStruct.goodLabels)
 % option_only_good: 0/[] all units, 1 good, 2 Kilosort's original good, or a cell array of labels to
@@ -15,6 +15,10 @@ function [stats, goodIDs, mxWF, tWF, wf_shift, unit_labels, basis] = GMM_stats(a
 %       spread: mean peak-to-peak amplitude of channels 25-60 um from the peak channel, as a
 %           fraction of the peak channel's (spatial fall-off)
 %       All 11 are z-scored (mean and SD stored in basis).
+%       pk1_height, pk1_time, pk2_height, pk2_time: largest value of the normalized waveform before the
+%           trough (peak 1) and after it (peak 2), and their times from the trough (ms); z-scored
+%           separately (basis.peak_mu / peak_sd). basis.width_ms (= peak 2 time) and basis.asym
+%           ((pk2 - pk1) / (pk2 + pk1)) keep the unscaled trough-to-peak width and asymmetry for plots.
 % basis: waveform and ACG PCA bases ('waveform' only), to score other units the same way
 if ~exist('stat_set', 'var') || isempty(stat_set); stat_set = 'trough'; end
 is_wf = strcmp(stat_set, 'waveform');
@@ -33,6 +37,7 @@ if istable(all_dir)
     goodIDs = ones(size(meanRate));
     wf_shift = NaN(size(meanRate));
     unit_labels = repmat({''}, size(meanRate));
+    dir_idx = ones(size(meanRate));
     fs = 1e6;
     tWF = ((0:size(mxWF,2)-1)/fs - 3.08e-4)*1e3;
 else
@@ -40,6 +45,7 @@ else
     if ~iscell(all_dir); all_dir = {all_dir}; end
 
     meanRate = [];
+    dir_idx = [];
     mxWF = []; % cat(1,theseWaveforms.mxWF);
     goodIDs = []; %cat(1,theseWaveforms.goodIDs);
     wf_shift = [];
@@ -73,23 +79,12 @@ else
         if isfield(wvStruct, 'wf_shift'); shift_i = wvStruct.wf_shift(mask(:)); else; shift_i = NaN(nnz(mask),1); end
         wf_shift = cat(1, wf_shift, shift_i);
         unit_labels = cat(1, unit_labels, wvStruct.goodLabels(mask(:)));
+        dir_idx = cat(1, dir_idx, repmat(ii, nnz(mask), 1));   % which sort folder each unit is from
 
-        if is_wf % autocorrelograms and spatial spread
-            fs_spk = size(wvStruct.mxWF, 2) / wvStruct.spkDur;
-            spike_times = double(readNPY(fullfile(ks_dir, 'spike_times.npy'))) / fs_spk;
-            spike_clusters = readNPY(fullfile(ks_dir, 'spike_clusters.npy'));
-            % waveFormsMean columns are the sorted raw channels Kilosort used (bad ones excluded)
-            [chan_idx, order] = sort(double(readNPY(fullfile(ks_dir, 'channel_map.npy'))) + 1);
-            pos = readNPY(fullfile(ks_dir, 'channel_positions.npy')); pos = pos(order, :);
-            for u = find(mask(:))'
-                t = sort(spike_times(spike_clusters == wvStruct.goodIDs(u)));
-                acg_u = autocorrelogram(t, acg_edges) ./ (numel(t) * wvStruct.meanRate(u) * diff(acg_edges));
-                acg = cat(1, acg, log10(acg_u + acg_offset));
-                ptp = max(wvStruct.waveFormsMean(:, :, u)) - min(wvStruct.waveFormsMean(:, :, u));
-                i_peak = find(chan_idx == wvStruct.max_site(u));
-                dist = vecnorm(pos - pos(i_peak, :), 2, 2);
-                spread = cat(1, spread, mean(ptp(dist >= 25 & dist <= 60)) / ptp(i_peak));
-            end
+        if is_wf % autocorrelograms and spatial spread, cached in the sort folder
+            feat = unitFeatures(ks_dir, wvStruct, acg_edges);
+            acg = cat(1, acg, log10(feat.acg_ratio(mask(:), :) + acg_offset));
+            spread = cat(1, spread, feat.spread(mask(:)));
         end
     end
 
@@ -118,8 +113,19 @@ if is_wf
     X = (X - basis.feat_mu) ./ basis.feat_sd;          % z-scored, so each feature starts on the same scale
     stats = array2table(X, 'VariableNames', [compose('wf_pc%d', 1:size(wf_pcs, 2)), {'rate_log10'}, ...
         compose('acg_pc%d', 1:size(acg_pcs, 2)), {'spread'}]);
+    % Trough-to-peak width (ms) and asymmetry of the normalized waveform, z-scored on their own so models
+    % fit before these existed keep their feature scaling
+    peaks = troughPeaks(w_norm, mean(diff(tWF)) * 1e3);   % pk1 height, pk1 time, pk2 height, pk2 time
+    if ~isfield(basis, 'peak_mu'); basis.peak_mu = mean(peaks); basis.peak_sd = std(peaks); end
+    peak_z = (peaks - basis.peak_mu) ./ basis.peak_sd;
+    stats.pk1_height = peak_z(:, 1); stats.pk1_time = peak_z(:, 2);
+    stats.pk2_height = peak_z(:, 3); stats.pk2_time = peak_z(:, 4);
+    width_ms = peaks(:, 4); asym = (peaks(:, 3) - peaks(:, 1)) ./ (peaks(:, 3) + peaks(:, 1));   % for plotting
     basis.acg_edges = acg_edges; basis.acg_offset = acg_offset;
-    basis.acg = acg; basis.w_norm = w_norm;           % per-unit curves, for plotting
+    basis.acg = acg; basis.w_norm = w_norm;           % per-unit curves and shape, for plotting
+    basis.width_ms = width_ms; basis.asym = asym;
+    basis.rate_log10 = log10(meanRate);               % unscaled log10 rate (Hz)
+    basis.dir_idx = dir_idx;                          % index into all_dir of each unit's sort folder
     return
 end
 basis = [];
@@ -151,6 +157,49 @@ for nUnit = 1:numUnits
 end
 
 
+end
+
+function feat = unitFeatures(ks_dir, wvStruct, acg_edges)
+% Autocorrelogram (ratio to a Poisson process at the unit's rate, in acg_edges bins) and spatial spread of
+% every unit in wvStruct order (NaN for units without a waveform). Saved in the sort folder as
+% cell_type_features.mat and reloaded while the waveforms (mxWF), the spike assignments (spike_clusters.npy,
+% which phy rewrites) and the bins are unchanged.
+cache_file = fullfile(ks_dir, 'cell_type_features.mat');
+if isfile(cache_file)
+    feat = load(cache_file);
+    d_cache = dir(cache_file); d_clu = dir(fullfile(ks_dir, 'spike_clusters.npy'));
+    if isequal(feat.acg_edges, acg_edges) && isequaln(feat.mxWF, wvStruct.mxWF) && d_cache.datenum > d_clu.datenum
+        return
+    end
+end
+fs_spk = size(wvStruct.mxWF, 2) / wvStruct.spkDur;
+spike_times = double(readNPY(fullfile(ks_dir, 'spike_times.npy'))) / fs_spk;
+spike_clusters = readNPY(fullfile(ks_dir, 'spike_clusters.npy'));
+% waveFormsMean columns are the sorted raw channels Kilosort used (bad ones excluded)
+[chan_idx, order] = sort(double(readNPY(fullfile(ks_dir, 'channel_map.npy'))) + 1);
+pos = readNPY(fullfile(ks_dir, 'channel_positions.npy')); pos = pos(order, :);
+n = numel(wvStruct.goodIDs);
+feat = struct('ids', wvStruct.goodIDs(:), 'acg_ratio', NaN(n, numel(acg_edges) - 1), 'spread', NaN(n, 1), ...
+    'acg_edges', acg_edges, 'mxWF', wvStruct.mxWF);
+for u = find(~any(isnan(wvStruct.mxWF), 2))'
+    t = sort(spike_times(spike_clusters == wvStruct.goodIDs(u)));
+    feat.acg_ratio(u, :) = autocorrelogram(t, acg_edges) ./ (numel(t) * wvStruct.meanRate(u) * diff(acg_edges));
+    ptp = max(wvStruct.waveFormsMean(:, :, u)) - min(wvStruct.waveFormsMean(:, :, u));
+    i_peak = find(chan_idx == wvStruct.max_site(u));
+    dist = vecnorm(pos - pos(i_peak, :), 2, 2);
+    feat.spread(u) = mean(ptp(dist >= 25 & dist <= 60)) / ptp(i_peak);
+end
+save(cache_file, '-struct', 'feat')
+end
+
+function peaks = troughPeaks(w, dt_ms)
+% Each row of w: [peak 1 height, peak 1 time, peak 2 height, peak 2 time], peak 1 = largest value up to the
+% trough (time <= 0), peak 2 = largest value from the trough on (time >= 0), times in ms from the trough
+n = size(w, 1); [~, i_tr] = min(w, [], 2); peaks = NaN(n, 4);
+for i = 1:n
+    [pk1, i_pk1] = max(w(i, 1:i_tr(i))); [pk2, i_pk2] = max(w(i, i_tr(i):end));
+    peaks(i, :) = [pk1, (i_pk1 - i_tr(i)) * dt_ms, pk2, (i_pk2 - 1) * dt_ms];
+end
 end
 
 function counts = autocorrelogram(t, edges)

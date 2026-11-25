@@ -9,23 +9,8 @@ function fig = plotTemplatesOnProbe(ks_dir, fig_title)
 %
 %   fig_title (optional): figure title, e.g. session and sort name
 
-templates = readNPY(fullfile(ks_dir, 'templates.npy'));            % templates x samples x channels (whitened)
-w_inv = readNPY(fullfile(ks_dir, 'whitening_mat_inv.npy'));
-pos = readNPY(fullfile(ks_dir, 'channel_positions.npy'));          % channels x [x y]
-spike_templates = readNPY(fullfile(ks_dir, 'spike_templates.npy'));
-spike_clusters = readNPY(fullfile(ks_dir, 'spike_clusters.npy'));
-T = readtable(fullfile(ks_dir, 'cluster_group.tsv'), 'FileType', 'text', 'Delimiter', '\t');
-good = T.cluster_id(strcmp(T.group, 'good'));
-
-% Template of each good cluster (the one most of its spikes came from), unwhitened
-[n_samp, n_ch] = deal(size(templates, 2), size(templates, 3));
-wf = zeros(numel(good), n_samp, n_ch);
-for k = 1:numel(good)
-    tmp = mode(spike_templates(spike_clusters == good(k)));
-    wf(k, :, :) = squeeze(templates(tmp + 1, :, :)) * w_inv;
-end
-amp = squeeze(max(wf, [], 2) - min(wf, [], 2));                    % units x channels, peak to peak
-[amp_max, peak_ch] = max(amp, [], 2);
+[good, wf, pos, peak_ch, amp_max] = loadGoodTemplates(ks_dir);
+[n_samp, n_ch] = deal(size(wf, 2), size(wf, 3));
 
 % Shanks: channel groups separated by more than 50 um in x
 [x_sorted, ix] = sort(pos(:, 1));

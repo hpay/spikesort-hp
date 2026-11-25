@@ -1,54 +1,77 @@
-﻿function [gm, idx, labels, basis] = GMM_make(all_dir, option_only_good, n_clusters, stat_set, cov_type, other, n_pc_fixed, background)
-% GMM_MAKE  Fit a Gaussian mixture to unit waveform features from one or more sort folders.
+function [gm, idx, labels, basis] = makeCellTypeModel(all_dir, option_only_good, n_clusters, stat_set, cov_type, other, n_pc_fixed, background, plot_on, t_mix)
+% MAKECELLTYPEMODEL  Fit a Gaussian mixture to unit waveform features from one or more sort folders.
 % 'trough' (default): E/I from trough features. Clusters are named by spike width: the widest mean
 %   trough-to-peak duration is E, narrow is I. idx: 1 = E, 2 = I, 3 = noise (3 clusters).
 % 'waveform': the two-step whole-waveform model (below); scripts/fitCellTypeModel.m builds the cell
 %   type model on it. See https://www.mathworks.com/help/stats/gmdistribution.cluster.html for outputs.
 % stat_set: 'trough' (default, E/I from trough features) or 'waveform' (whole-waveform features, see
-%   GMM_stats; all units kept, number of clusters chosen by BIC if n_clusters is empty, clusters
-%   numbered by their mean first waveform PC). basis: PCA bases to pass to GMM_apply ('waveform').
+%   cellTypeFeatures; all units kept, number of clusters chosen by BIC if n_clusters is empty, clusters
+%   numbered by their mean first waveform PC). basis: PCA bases to pass to applyCellTypeModel ('waveform').
 % cov_type ('waveform' only): 'full' (default), 'diagonal', or 'shared' (one full covariance shared by all
 %   of a group's clusters, so no cluster can be much broader than the others); or a cell array with
 %   one setting per group, e.g. {'shared', 'full'}
 % other ('waveform' only): non-waveform features clustered with the group PCs, default
-%   {'rate_log10', 'acg_pc1', 'acg_pc2', 'acg_pc3', 'spread'}
-% n_pc_fixed ('waveform' only): number of group waveform PCs to cluster on; default [] = 2-3, enough for
-%   90% of the group's variance
+%   {'rate_log10', 'acg_pc1', 'acg_pc2', 'acg_pc3', 'spread'}; with t_mix, can be one list per group,
+%   e.g. {{'pk2_time', 'rate_log10'}, {'rate_log10'}}
+% n_pc_fixed ('waveform' only): number of group waveform PCs to cluster on, one value or one per group
+%   (0 = none); default [] = 2-3, enough for 90% of the group's variance
 % background ('waveform' only, full covariance): true adds a uniform "catch-all" component to each group's
 %   mixture (density = 1 / volume of the group's feature range, padded 10%), fit by EM together with the
 %   Gaussians, so units that fit no cluster go to their own background cluster. Default false.
+% plot_on ('waveform' only): apply the fitted model and plot its clusters (default true); false returns
+%   only gm and basis (idx and labels empty)
+% t_mix ('waveform' only, needs n_clusters = [n1 n2]): struct('nu', nu, 'outlier_p', p) fits each group with a
+%   mixture of multivariate t-distributions (nu degrees of freedom, full covariances) instead of Gaussians;
+%   applyCellTypeModel moves units whose fit to their own cluster has p < outlier_p to the group's outlier cluster.
+%   cov_type and background are then ignored.
 if ~exist('stat_set', 'var') || isempty(stat_set); stat_set = 'trough'; end
+if ~exist('plot_on', 'var') || isempty(plot_on); plot_on = true; end
 if ~exist('cov_type', 'var') || isempty(cov_type); cov_type = 'full'; end
 
 %% Get waveforms from each session
-[stats, goodIDs, mxWF, tWF, ~, ~, basis] = GMM_stats(all_dir, option_only_good, stat_set);
+[stats, goodIDs, mxWF, tWF, ~, ~, basis] = cellTypeFeatures(all_dir, option_only_good, stat_set);
 
 if strcmp(stat_set, 'waveform')
     % Two steps: 1. split units into two groups on wf_pc1 (negative vs positive main extremum) with a
     % 1-D, 2-component GMM. 2. Within each group, refit the waveform PCA on that group's normalized
     % waveforms, keep 2-3 PCs (enough for 90% of its variance), and fit a GMM on those PCs plus
     % the features in other (cluster count by BIC unless n_clusters = [n_group1 n_group2]).
-    % gm is then a struct (split model + each group's basis and GMM) for GMM_apply.
+    % gm is then a struct (split model + each group's basis and GMM) for applyCellTypeModel.
     rng(2)
     if ~exist('other', 'var') || isempty(other); other = {'rate_log10', 'acg_pc1', 'acg_pc2', 'acg_pc3', 'spread'}; end
-    X_other = stats{:, other};
+    if iscell(other{1})          % one feature list per group (t_mix only)
+        if ~exist('t_mix', 'var') || isempty(t_mix); error('Per-group feature lists need t_mix'); end
+        group_other = other; other = {};
+    else
+        group_other = {other, other};
+    end
     split = fitgmdist(stats.wf_pc1, 2, 'Replicates', 10);
     [~, split_low] = min(split.mu);
     group = 2 - (split.cluster(stats.wf_pc1) == split_low);  % 1 = low wf_pc1 (negative trough)
     gm = struct('split', split, 'split_low', split_low, 'other', {other});
     if ~iscell(cov_type); cov_type = {cov_type, cov_type}; end
     use_bic = ~(exist('n_clusters', 'var') && numel(n_clusters) == 2);
-    if use_bic; fig = figure('Name', 'GMM BIC'); ax = axes(fig); hold(ax, 'on'); end
+    if use_bic; fig = figure('Name', 'Cell type model BIC'); ax = axes(fig); hold(ax, 'on'); end
     for g = 1:2
         shared = strcmp(cov_type{g}, 'shared');
         fit_k = @(Xg, k) fitgmdist(Xg, k, 'CovarianceType', replace(cov_type{g}, 'shared', 'full'), ...
             'SharedCovariance', shared, 'Replicates', 20, 'RegularizationValue', 1e-3, 'Options', statset('MaxIter', 1000));
         [coeff, score, ~, ~, expl, mu_w] = pca(basis.w_norm(group == g, :));
         n_pc = min(3, max(2, find(cumsum(expl) >= 90, 1)));
-        if exist('n_pc_fixed', 'var') && ~isempty(n_pc_fixed); n_pc = n_pc_fixed; end
+        if exist('n_pc_fixed', 'var') && ~isempty(n_pc_fixed); n_pc = n_pc_fixed(min(g, end)); end   % one value, or one per group (0 = no PCs)
         S = score(:, 1:3);                                    % 3 kept for plotting; the first n_pc clustered
         s_mu = mean(S); s_sd = std(S);
-        Xg = [(S(:, 1:n_pc) - s_mu(1:n_pc)) ./ s_sd(1:n_pc), X_other(group == g, :)];
+        X_other = stats{group == g, group_other{g}};
+        Xg = [(S(:, 1:n_pc) - s_mu(1:n_pc)) ./ s_sd(1:n_pc), X_other];
+        if exist('t_mix', 'var') && ~isempty(t_mix)
+            % group PCs computed as applyCellTypeModel scores them, so the fit and the scoring see identical features
+            pc_g = ((basis.w_norm(group == g, :) - mu_w) * coeff(:, 1:3) - s_mu) ./ s_sd;
+            gm_g = fitTMixture([pc_g(:, 1:n_pc), X_other], n_clusters(g), t_mix.nu);
+            gm.group(g) = struct('coeff', coeff(:, 1:3), 'mu', mu_w, 's_mu', s_mu, 's_sd', s_sd, 'n_pc', n_pc, ...
+                'explained', expl(1:3)', 'gm', gm_g, 'p0', 0, 'bg_density', 0, 'nu', t_mix.nu, 'outlier_p', t_mix.outlier_p, ...
+                'other', {group_other{g}});
+            continue
+        end
         if ~use_bic
             gm_g = fit_k(Xg, n_clusters(g));
         else
@@ -74,14 +97,15 @@ if strcmp(stat_set, 'waveform')
         xlabel(ax, 'number of clusters'); ylabel(ax, 'BIC'); legend(ax, 'Location', 'best', 'FontSize', 10)
         title(ax, sprintf('GMM within each wf PC1 group, group PCs (%s / %s covariance)', cov_type{:})); drawnow
     end
-    [idx, labels] = GMM_apply(gm, all_dir, option_only_good, 1, stat_set, basis);
+    idx = []; labels = {};
+    if plot_on; [idx, labels] = applyCellTypeModel(gm, all_dir, option_only_good, 1, stat_set, basis); end
     return
 end
 
 % Train only on negative-trough units: trough features don't apply when the peak is bigger
-% (GMM_apply labels those units unknown)
+% (applyCellTypeModel labels those units unknown)
 pos_peak = max(mxWF,[],2) > abs(min(mxWF,[],2));
-fprintf('GMM_make: excluding %d of %d units with peak > trough from training\n', nnz(pos_peak), numel(pos_peak))
+fprintf('makeCellTypeModel: excluding %d of %d units with peak > trough from training\n', nnz(pos_peak), numel(pos_peak))
 stats = stats(~pos_peak,:);
 
 % Exclude very low rate cells from the template creation
@@ -128,7 +152,7 @@ cov_type = 'full'; % SC uses diagonal but I find clusters are not always round
 gm = fitgmdist(X,n_clusters,'CovarianceType',cov_type,'Start',ind_start);
 
 plot_on = 1;
-[idx,labels] = GMM_apply(gm, all_dir, option_only_good, plot_on);
+[idx,labels] = applyCellTypeModel(gm, all_dir, option_only_good, plot_on);
 
 end
 
@@ -161,4 +185,3 @@ end
 if shared; Sigma = Sigma(:, :, 1); end
 gm = gmdistribution(mu, Sigma, p / sum(p));
 end
-
